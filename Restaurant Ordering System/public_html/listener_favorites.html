@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SoundScape My Favorites</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <header>
+        <div class="wrapper">
+            <div class="logo">
+                <a href="/listener_main.html">SoundScape</a>
+            </div>
+            <nav>
+                <a href="/listener_main.html">Home</a>
+                <a href="/listener_profile.html">Profile</a>
+                <a href="/login.html">Sign Out</a>
+                <img src="/image/prof.jpg" style="width:45px;">
+            </nav>
+        </div>
+        <div class="rectangle"></div>
+    </header>
+
+    
+    <div class="playlist-page">
+        <div class="sidebar-left"></div>
+        <div class="playlist-content">
+            <div class="playlist-header">
+                <div class="playlist-image">
+                    <img src="/image/favorite.png" alt="Favorites Image"> 
+                </div>
+                <div class="playlist-details">
+                    <h1>My Favorites</h1> 
+                    <p>Date Created: <span>Automatically</span></p> 
+                    <p>Songs: <span id="song-count">0</span></p> 
+                </div>
+            </div>
+
+            <div class="song-list" id="favorites-container">
+                <!-- Songs will be loaded here -->
+            </div>
+        </div>
+        <div class="sidebar-right"></div>
+    </div>
+
+    <script src="/js/app.js"></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            function loadFavorites(user_id = 1) {
+                const container = document.getElementById('favorites-container');
+                const countSpan = document.getElementById('song-count');
+                if (!container) return;
+
+                const xhr = new XMLHttpRequest();
+                xhr.open('GET', `/favorites?user_id=${user_id}`, true);
+                xhr.onload = function () {
+                    if (xhr.status === 200) {
+                        const songs = JSON.parse(xhr.responseText);
+                        container.innerHTML = '';
+                        countSpan.textContent = songs.length;
+
+                        songs.forEach(song => {
+                            const songDiv = document.createElement('div');
+                            songDiv.classList.add('song-item');
+                            songDiv.innerHTML = `
+                                <img src="${song.cover}" alt="${song.name}">
+                                <div class="song-info">
+                                    <h3>${song.name}</h3>
+                                    <p>Artist: ${song.artist}</p>
+                                </div>
+                            `;
+                            container.appendChild(songDiv);
+                        });
+                    } else {
+                        container.innerHTML = "<p>Unable to load favorites.</p>";
+                    }
+                };
+                xhr.send();
+            }
+
+            loadFavorites(1); // Replace with actual session user ID later
+        });
+    </script>
+</body>
+</html>
