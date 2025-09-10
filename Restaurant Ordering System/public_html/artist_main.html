@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Artist Suite</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+    <audio src="/music/" id="audio"></audio>
+
+    <div class="boxarea">
+        <header>
+            <div class="wrapper">
+                <div class="logo">
+                    <a href="/artist_main.html">SoundScape</a>
+                </div>
+                <nav>
+                    <a href="/artist_upload.html">Upload</a>
+                    <a href="/artist_profile.html">Profile</a>
+                    <a href="/login.html">Sign Out</a>
+                    <img src="/image/prof.jpg" style="width:45px;">
+                </nav>
+            </div>
+            <div class="rectangle"></div>
+        </header>
+
+        <div class="banner-area">
+            <h2>Fixed Banner</h2>
+        </div>
+
+        <div class="content-area">
+            <div class="wrapper">
+                <h1>Artist Suite</h1>
+
+                <!-- My Songs Section -->
+                <div class="list-section">
+                    <div class="list-header">
+                        <h2>My Songs</h2>
+                        
+                    </div>
+                    <div class="scroll-wrapper">
+                        <button class="scroll-btn left" data-target="songs">
+                            <i class="bi bi-chevron-left"></i>
+                          </button>
+                        <div class="scroll-list" id="artist_songs"></div>
+                        <button class="scroll-btn right" data-target="songs">
+                            <i class="bi bi-chevron-right"></i>
+                          </button>
+                    </div>
+                </div>
+
+                <br><br>
+
+                <!-- My Albums Section -->
+                <div class="list-section">
+                    <div class="list-header">
+                        <h2>My Albums</h2>
+                        
+                    </div>
+                    <div class="scroll-wrapper">
+                        <button class="scroll-btn left" data-target="songs">
+                            <i class="bi bi-chevron-left"></i>
+                          </button>
+                        <div class="scroll-list" id="artist_albums"></div>
+                        <button class="scroll-btn right" data-target="songs">
+                            <i class="bi bi-chevron-right"></i>
+                          </button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/app.js"></script>
+
+    <!--SCROLLING MENUS-->
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            const scrollWrappers = document.querySelectorAll(".scroll-wrapper");
+            
+            scrollWrappers.forEach(wrapper => {
+                const leftBtn = wrapper.querySelector(".scroll-btn.left");
+                const rightBtn = wrapper.querySelector(".scroll-btn.right");
+                const scrollList = wrapper.querySelector(".scroll-list");
+
+                const updateArrows = () => {
+                    const maxScroll = scrollList.scrollWidth - scrollList.clientWidth;
+                    leftBtn.classList.toggle("hidden", scrollList.scrollLeft <= 0);
+                    rightBtn.classList.toggle("hidden", scrollList.scrollLeft >= maxScroll - 10);
+                };
+
+                const scrollAmount = 300; 
+
+                
+                updateArrows();
+
+                leftBtn.addEventListener("click", () => {
+                    scrollList.scrollBy({ left: -scrollAmount, behavior: 'smooth' });
+                });
+
+                rightBtn.addEventListener("click", () => {
+                    scrollList.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+                });
+
+                
+                scrollList.addEventListener("scroll", updateArrows);
+            });
+
+
+
+
+
+
+
+ });
+
+
+ </script>
+
+
+</body>
+</html>

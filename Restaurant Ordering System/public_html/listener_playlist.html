@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SoundScape Playlist</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <header>
+        <div class="wrapper">
+            <div class="logo">
+                <a href="/listener_main.html">SoundScape</a>
+            </div>
+            <nav>
+                <a href="/listener_main.html">Home</a>
+                <a href="/listener_profile.html">Profile</a>
+                <a href="/login.html">Sign Out</a>
+                <img src="/image/prof.jpg" style="width:45px;">
+            </nav>
+        </div>
+        <div class="rectangle"></div>
+    </header>
+
+    <div class="content-area">
+        <div class="wrapper">
+
+            <!-- Create Playlist Button -->
+            <div style="text-align: right; margin-bottom: 20px;">
+                <button class="toggle-button" onclick="openModal()">+ Create Playlist</button>
+            </div>
+
+            <!-- Playlists Section -->
+            <div class="list-section">
+                <div class="list-header">
+                    <h2>Your Playlists</h2>
+                </div>
+                <div class="scroll-wrapper expanded">
+                    <div class="scroll-list expanded" id="playlists">
+                        <div class="item">
+                            <a href="/listener_favorites.html">
+                                <img src="/image/favorite.png" alt="My Favorites">
+                                <div class="name">My Favorites</div>
+                            </a>
+                        </div>
+                        <!-- Playlists will be injected here -->
+                    </div>
+                    
+                        
+                    
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Create Playlist Modal -->
+    <div id="createPlaylistModal" class="modal">
+        <div class="modal-content">
+        <span class="close" onclick="closeModal()">&times;</span>
+        <h2>Create New Playlist</h2>
+        <form id="createPlaylistForm" enctype="multipart/form-data">
+            <input type="text" id="playlistName" placeholder="Playlist Name" required><br><br>
+            <input type="file" id="playlistImage" accept="image/*" required><br><br>
+
+            <button type="submit">Create Playlist</button>
+        </form>
+        </div>
+    </div>
+  
+
+    <script src="/js/app.js"></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            const container = document.getElementById("playlists");
+        
+            const xhr = new XMLHttpRequest();
+            xhr.open("GET", "/playlist/list?user_id=1", true);
+            xhr.onload = function () {
+                if (xhr.status === 200) {
+                    const playlists = JSON.parse(xhr.responseText);
+                    playlists.forEach(p => {
+                        const div = document.createElement("div");
+                        div.className = "item";
+                        div.innerHTML = `
+                            <a href="/playlist.html?playlist_id=${p.id}">
+                                <img src="${p.image}" alt="${p.name}">
+                                <div class="name">${p.name}</div>
+                            </a>
+                        `;
+                        container.appendChild(div);
+                    });
+                }
+            };
+            xhr.send();
+        });
+    </script>
+        
+        <script>
+            function openModal() {
+                document.getElementById("createPlaylistModal").style.display = "block";
+            }
+            
+            function closeModal() {
+                document.getElementById("createPlaylistModal").style.display = "none";
+            }
+            
+            document.getElementById("createPlaylistForm").addEventListener("submit", function(e) {
+                e.preventDefault();
+            
+                const name = document.getElementById("playlistName").value;
+                const imageFile = document.getElementById("playlistImage").files[0];
+            
+                const formData = new FormData();
+                formData.append("user_id", 1); // hardcoded for now
+                formData.append("name", name);
+                formData.append("image", imageFile);
+            
+                const xhr = new XMLHttpRequest();
+                xhr.open("POST", "/playlist/create", true);
+                xhr.onload = function () {
+                    if (xhr.status === 200) {
+                        closeModal();
+                        location.reload();
+                    } else {
+                        alert("Failed to create playlist.");
+                    }
+                };
+                xhr.send(formData);
+            });
+        </script>
+            
+        
+</body>
+</html>

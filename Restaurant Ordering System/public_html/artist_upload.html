@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+    <audio src="/music/" id="audio"></audio>
+
+    <div class="boxarea">
+        <header>
+            <div class="wrapper">
+                <div class="logo">
+                    <a href="artist_main.html">SoundScape</a>
+                </div>
+                <nav>
+                    <a href="/artist_main.html">Home</a>
+                    <a href="/artist_profile.html">Profile</a>
+                    <a href="/login.html">Sign Out</a>
+                    <img src="/image/prof.jpg" style="width:45px;">
+                </nav>
+            </div>
+            <div class="rectangle"></div>
+        </header>
+
+        <div class="banner-area">
+            <h2>Fixed Banner</h2>
+        </div>
+
+        <div class="content-area">
+            <div class="wrapper">
+                <h1>Welcome to the Artist Upload Page!</h1><br>
+                <img src="/image/artistupload.jpg" style="width:250px;"> <br><br>
+                <p>This is where you are able to upload both Albums and Songs to the Soundscape Website. Below</p>
+                <p>are two areas that will allow you to choose which you would like to upload. </p>
+
+            </div>
+        </div>
+
+        <div class="upload-content-area">
+            <div class="upload-wrap">
+                
+                
+
+                <!-- Upload Album -->
+                <div class="upload-section">
+                    <button class="toggle-button">Upload Album</button>
+                    <div class="upload-album collapsible">
+                        <form id="albumForm" class="albumBox" action="/upload" method="post" enctype="multipart/form-data">
+                           <!-- <input type="hidden" id="album_user_id" name="user_id" /> --> 
+                            <label for="album_title">Enter the Album Name:</label> <br>
+                            <input id="album_title" name="albumtitle" class="albumInput" type="text"/> <br><br>
+                            <label for="artist_name">Enter the Artist Name:</label> <br>
+                            <input id="artist_name" name="artistname" class="albumInput" type="text"/> <br><br>
+                            <label for="album_cover">Upload Album Cover:</label> <br>
+                            <input id="album_cover" name="albumart" class="albumInput" type="file"> <br><br>
+                            <button type="submit" name="submit">Submit</button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Upload Song -->
+                <div class="upload-section">
+                    <button class="toggle-button">Upload Song</button>
+                    <div class="upload-song collapsible">
+                        <form id="songForm" class="songBox" action="/upload" method="post" enctype="multipart/form-data">
+                           <!-- <input type="hidden" id="song_user_id" name="user_id" /> -->
+                            <label for="song_title">Enter the Song Name:</label> <br>
+                            <input id="song_title" name="songtitle" class="songInput" type="text"/> <br><br>
+                            <label for="artist_name">Enter the Artist Name:</label> <br>
+                            <input id="artist_name" name="artistname" class="songInput" type="text"/> <br><br>
+                            <label for="song_file">Upload Song File:</label> <br>
+                            <input id="song_file" name="songfile" class="songInput" type="file"> <br><br>
+                            <label for="song_cover">Upload Song Cover:</label> <br>
+                            <input id="song_cover" name="songart" class="songInput" type="file"> <br><br>
+                            <button type="submit" name="submit">Submit</button>
+                        </form>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/app.js"></script>
+
+<script>
+
+</script>
+</body>
+</html>
