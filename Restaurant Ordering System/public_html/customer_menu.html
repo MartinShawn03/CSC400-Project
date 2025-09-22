@@ -1,1 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Menu - Self Service Ordering</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 font-sans">
+
+  <!-- Header -->
+  <header class="bg-white shadow p-4 flex justify-between items-center">
+    <h1 class="text-2xl font-bold text-gray-800">Our Menu</h1>
+    <div class="space-x-4">
+        <a href="customer_main.html" class="bg-gray-200 text-gray-800 px-3 py-1 rounded hover:bg-gray-300">Home</a>
+        <a href="cart.html" class="text-blue-600 hover:underline">View Cart</a>
+    </div>
+  </header>
+
+  <!-- Menu Grid -->
+  <main class="p-6">
+    <div class="grid gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+
+      <!-- Placeholders for Products --> <!-- Copy this block to add products -->
+      <div class="bg-white shadow rounded-lg overflow-hidden flex flex-col">
+        <img src="https://via.placeholder.com/300x200" alt="Product" class="w-full h-40 object-cover">
+        <div class="p-4 flex flex-col flex-grow">
+          <h2 class="text-lg font-semibold text-gray-800">Product 1</h2>
+          <p class="text-gray-600 text-sm flex-grow">Product 1 Description</p>
+          <p class="text-gray-900 font-bold mt-2">$Product 1 Price </p>
+          <button class="mt-3 bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700">
+            Add to Cart
+          </button>
+        </div>
+      </div>
+
+      <div class="bg-white shadow rounded-lg overflow-hidden flex flex-col">
+        <img src="https://via.placeholder.com/300x200" alt="Product" class="w-full h-40 object-cover">
+        <div class="p-4 flex flex-col flex-grow">
+          <h2 class="text-lg font-semibold text-gray-800">Product 2</h2>
+          <p class="text-gray-600 text-sm flex-grow">Product 2 Description</p>
+          <p class="text-gray-900 font-bold mt-2">$Product 2 Price</p>
+          <button class="mt-3 bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700">
+            Add to Cart
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+</body>
+</html>
 

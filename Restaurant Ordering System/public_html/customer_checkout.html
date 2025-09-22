@@ -1,1 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Checkout - Self Service Ordering</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 font-sans">
+
+  <!-- Header -->
+  <header class="bg-white shadow p-4 flex justify-between items-center">
+    <h1 class="text-2xl font-bold text-gray-800">Checkout</h1>
+    <div class="space-x-4">
+      <a href="customer_main.html" class="bg-gray-200 text-gray-800 px-3 py-1 rounded hover:bg-gray-300">Home</a>
+      <a href="customer_cart.html" class="text-blue-600 hover:underline">Back to Cart</a>
+    </div>
+  </header>
+
+
+  <!-- Checkout Form -->
+  <main class="p-6 max-w-2xl mx-auto bg-white shadow rounded-lg mt-6">
+    <h2 class="text-xl font-semibold mb-4">Billing & Payment Information</h2>
+
+    <form class="space-y-4">
+      <!-- Name -->
+      <div>
+        <label class="block text-gray-700 font-medium mb-1">Full Name</label>
+        <input type="text" placeholder="John Doe" class="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-600">
+      </div>
+
+      <!-- Email -->
+      <div>
+        <label class="block text-gray-700 font-medium mb-1">Email</label>
+        <input type="email" placeholder="john@example.com" class="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-600">
+      </div>
+
+      <!-- Address -->
+      <div>
+        <label class="block text-gray-700 font-medium mb-1">Address</label>
+        <input type="text" placeholder="123 Main St" class="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-600">
+      </div>
+
+      <!-- Payment Method -->
+      <div>
+        <label class="block text-gray-700 font-medium mb-1">Payment Method</label>
+        <select class="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-600">
+          <option>Credit Card</option>
+          <option>Debit Card</option>
+          <option>PayPal</option>
+          <option>Cash on Delivery</option>
+        </select>
+      </div>
+
+      <!-- Total Amount -->
+      <div class="flex justify-between items-center mt-6">
+        <p class="text-lg font-semibold">Total:</p>
+        <p class="text-lg font-bold">$__</p>
+      </div>
+
+      <!-- Place Order Button -->
+      <div class="flex justify-end mt-4">
+        <button type="submit" class="bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700">
+          Place Order
+        </button>
+      </div>
+    </form>
+  </main>
+
+</body>
+</html>
 
