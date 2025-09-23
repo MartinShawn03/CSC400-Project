@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cart - Self Service Ordering</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 font-sans">
+
+  <!-- Header -->
+  <header class="bg-white shadow p-4 flex justify-between items-center">
+    <h1 class="text-2xl font-bold text-gray-800">Your Cart</h1>
+    <div class="space-x-4">
+      <a href="customer_main.html" class="bg-gray-200 text-gray-800 px-3 py-1 rounded hover:bg-gray-300">Home</a>
+      <a href="customer_menu.html" class="text-blue-600 hover:underline">Back to Menu</a>
+    </div>
+  </header>
+
+
+  <!-- Cart Content -->
+  <main class="p-6 max-w-4xl mx-auto">
+    <div class="bg-white shadow rounded-lg p-6 mb-6">
+      <h2 class="text-xl font-semibold mb-4">Items in Your Cart</h2>
+
+      <!-- Cart Item -->
+      <div class="flex items-center justify-between border-b py-4">
+        <div class="flex items-center space-x-4">
+          <img src="https://via.placeholder.com/80x60" alt="Cappuccino" class="w-20 h-16 object-cover rounded">
+          <div>
+            <p class="font-semibold text-gray-800">Product 1</p>
+            <p class="text-gray-600 text-sm">Product 1 Description</p>
+          </div>
+        </div>
+        <div class="flex items-center space-x-4">
+          <input type="number" value="1" min="1" class="w-16 border rounded px-2 py-1 text-center">
+          <p class="font-bold text-gray-900">$Product 1 Price</p>
+          <button class="text-red-600 hover:underline">Remove</button>
+        </div>
+      </div>
+
+      <!-- Cart Total -->
+      <div class="flex justify-end mt-6 space-x-6">
+        <p class="text-lg font-semibold">Total:</p>
+        <p class="text-lg font-bold">$14.50</p>
+      </div>
+
+      <!-- Checkout Button -->
+      <div class="flex justify-end mt-4">
+        <button class="bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700">
+          Checkout
+        </button>
+      </div>
+    </div>
+  </main>
+
+</body>
+</html>
