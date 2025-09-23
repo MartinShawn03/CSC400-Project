@@ -5,7 +5,7 @@ const mysql = require('mysql2');
 const url = require('url');
 
 const baseDir = path.resolve(__dirname, '..');
-
+/*
 const connection_pool = mysql.createPool({
     host: '',
     user: '',
@@ -13,7 +13,7 @@ const connection_pool = mysql.createPool({
     database: '',
     connectionLimit: 10
 });
-
+*/
 const server = http.createServer((req, res) => {
    // let reqPath = decodeURIComponent(req.url);
     let reqPath = decodeURIComponent(req.url.split('?')[0]);
@@ -47,7 +47,6 @@ const server = http.createServer((req, res) => {
         case '.jpeg': contentType = 'image/jpeg'; break;
         case '.ico': contentType = 'image/x-icon'; break;
     }
-});
 
 
     fs.readFile(filePath, (err, data) => {
@@ -60,9 +59,10 @@ const server = http.createServer((req, res) => {
             }
     });
     
-
+});
 
 
 server.listen(80, () => {
     console.log('Server running on port 80');
 });
+
