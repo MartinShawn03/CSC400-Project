@@ -5,15 +5,15 @@ const mysql = require('mysql2');
 const url = require('url');
 
 const baseDir = path.resolve(__dirname, '..');
-/*
+
 const connection_pool = mysql.createPool({
-    host: '',
-    user: '',
-    password: '',
-    database: '',
+    host: '136.113.3.49',
+    user: 'nodeuser',
+    password: 'csc400',
+    database: 'restaurant_db',
     connectionLimit: 10
 });
-*/
+
 const server = http.createServer((req, res) => {
    // let reqPath = decodeURIComponent(req.url);
     let reqPath = decodeURIComponent(req.url.split('?')[0]);
