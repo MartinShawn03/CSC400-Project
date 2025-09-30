@@ -1,11 +1,60 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Employee Menu Management</title>
+  <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
+<body class="bg-gray-50 font-sans">
+  
+  <header class="bg-white shadow p-4 flex justify-between items-center">
+    <h1 class="text-2xl font-bold text-gray-800">Our Menu - Employee</h1>
+    <a href="employee_main.html" class="text-blue-600 hover:underline">Home</a>
+  </header>
+  
+  <main class="p-6 max-w-4xl mx-auto text-center">
+    <section class="grid gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 mt-8">
+      <div class="bg-white shadow rounded-lg overflow-hidden flex flex-col">
+        <img src="https://via.placeholder.com/300x200" alt="Product 1" class="w-full h-40 object-cover">
+        <div class="p-4 flex flex-col flex-grow">
+          <h2 class="text-lg font-semibold text-gray-800">Product 1</h2>
+          <p class="text-gray-600 text-sm flex-grow">Product 1 Description</p>
+          <p class="text-gray-900 font-bold mt-2">$Product 1 Price</p>
+          <button class="bg-yellow-500 text-white px-3 py-1 rounded mt-2 hover:bg-yellow-600">Edit Item</button>
+          <button class="bg-red-500 text-white px-3 py-1 rounded mt-1 hover:bg-red-600">Delete Item</button>
+        </div>
+      </div>
+      <div class="bg-white shadow rounded-lg overflow-hidden flex flex-col">
+        <img src="https://via.placeholder.com/300x200" alt="Product 2" class="w-full h-40 object-cover">
+        <div class="p-4 flex flex-col flex-grow">
+          <h2 class="text-lg font-semibold text-gray-800">Product 2</h2>
+          <p class="text-gray-600 text-sm flex-grow">Product 2 Description</p>
+          <p class="text-gray-900 font-bold mt-2">$Product 2 Price</p>
+          <button class="bg-yellow-500 text-white px-3 py-1 rounded mt-2 hover:bg-yellow-600">Edit Item</button>
+          <button class="bg-red-500 text-white px-3 py-1 rounded mt-1 hover:bg-red-600">Delete Item</button>
+        </div>
+      </div>
+    </section>
+
     
+    <section class="mt-8">
+      <h2 class="text-3xl font-bold mb-4 text-gray-800">Pending Customer Orders</h2>
+      <div class="grid gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+        <div class="bg-white shadow rounded-lg overflow-hidden flex flex-col">
+          <div class="p-4 flex flex-col flex-grow">
+            <p class="text-gray-600 text-sm flex-grow">Order #1 - Customer: John Doe - Total: $25.00</p>
+            <button class="bg-green-600 text-white px-3 py-1 rounded mt-2 hover:bg-green-700">Confirm Order</button>
+          </div>
+        </div>
+        <div class="bg-white shadow rounded-lg overflow-hidden flex flex-col">
+          <div class="p-4 flex flex-col flex-grow">
+            <p class="text-gray-600 text-sm flex-grow">Order #2 - Customer: Jane Smith - Total: $15.00</p>
+            <button class="bg-green-600 text-white px-3 py-1 rounded mt-2 hover:bg-green-700">Confirm Order</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
 </body>
 </html>

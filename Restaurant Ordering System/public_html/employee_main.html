@@ -1,200 +1,49 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Employee Dashboard</title>
-  <!-- Tailwind (CDN) -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    /* Hide number input arrows */
-    input[type=number]::-webkit-inner-spin-button,
-    input[type=number]::-webkit-outer-spin-button {
-      -webkit-appearance: none;
-      margin: 0;
-    }
-    input[type=number] {
-      -moz-appearance: textfield; /* Firefox */
-    }
-  </style>
 </head>
-<body class="bg-gray-100 min-h-screen">
-  <!-- Top bar -->
-  <header class="bg-white border-b sticky top-0 z-10">
-    <div class="max-w-6xl mx-auto px-4 py-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-      <h1 class="text-2xl font-bold">Employee Dashboard</h1>
-
-      <div class="flex flex-wrap items-center gap-3">
-        <!-- Quick (temporary) controls -->
-        <label class="text-sm text-gray-600">
-          Restaurant ID
-          <input id="restaurantIdInput" type="number" value="1" class="ml-2 w-24 px-2 py-1 border rounded" />
-        </label>
-        <label class="text-sm text-gray-600">
-          Employee ID
-          <input id="employeeIdInput" type="number" value="1" class="ml-2 w-24 px-2 py-1 border rounded" />
-        </label>
-
-        <button id="refreshBtn" class="px-4 py-2 rounded-lg text-white bg-blue-600 hover:bg-blue-700">
-          Refresh Orders
-        </button>
-      </div>
-    </div>
+<body class="bg-gray-50 font-sans">
+  
+  <header class="bg-white shadow p-4 flex justify-between items-center">
+    <h1 class="text-2xl font-bold text-gray-800">Welcome to Our Restaurant - Employee</h1>
+    <a href="orders.html" class="text-blue-600 hover:underline">View Pending Orders</a>
   </header>
-
-  <!-- Content -->
-  <main class="max-w-6xl mx-auto px-4 py-6">
-    <!-- Status/notice area -->
-    <div id="notice" class="hidden mb-4 rounded-lg border bg-white p-3 text-sm"></div>
-
-    <!-- Orders grid -->
-    <div id="ordersGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+  
+  <main class="p-6 max-w-4xl mx-auto text-center">
+    <h2 class="text-3xl font-bold mb-4 text-gray-800">Manage Our Restaurant Easily</h2>
+    <p class="text-gray-600 mb-6">Edit the menu and confirm customer orders.</p>
+   
+    
+    <div class="space-x-4">
+      <a href="employee_menu.html" class="bg-blue-600 text-white px-6 py-3 rounded hover:bg-blue-700">View Menu</a>
+      <a href="orders.html" class="bg-green-600 text-white px-6 py-3 rounded hover:bg-green-700">Confirm Orders</a>
+    </div>
+   
+    
+    <section class="grid gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 mt-8">
+      <div class="bg-white shadow rounded-lg overflow-hidden flex flex-col">
+        <img src="https://via.placeholder.com/300x200" alt="Product 1" class="w-full h-40 object-cover">
+        <div class="p-4 flex flex-col flex-grow">
+          <h2 class="text-lg font-semibold text-gray-800">Product 1</h2>
+          <p class="text-gray-600 text-sm flex-grow">Product Description 1</p>
+          <p class="text-gray-900 font-bold mt-2">$Product Price 1</p>
+          <button class="bg-yellow-500 text-white px-3 py-1 rounded mt-2 hover:bg-yellow-600">Edit Item</button>
+        </div>
+      </div>
+      <div class="bg-white shadow rounded-lg overflow-hidden flex flex-col">
+        <img src="https://via.placeholder.com/300x200" alt="Product 2" class="w-full h-40 object-cover">
+        <div class="p-4 flex flex-col flex-grow">
+          <h2 class="text-lg font-semibold text-gray-800">Product 2</h2>
+          <p class="text-gray-600 text-sm flex-grow">Product 2 Description</p>
+          <p class="text-gray-900 font-bold mt-2">$Product 2 Price</p>
+          <button class="bg-yellow-500 text-white px-3 py-1 rounded mt-2 hover:bg-yellow-600">Edit Item</button>
+        </div>
+      </div>
+    </section>
   </main>
-
-  <script>
-    const restaurantIdInput = document.getElementById("restaurantIdInput");
-    const employeeIdInput = document.getElementById("employeeIdInput");
-    const grid = document.getElementById("ordersGrid");
-    const refreshBtn = document.getElementById("refreshBtn");
-    const noticeEl = document.getElementById("notice");
-
-    function showNotice(msg, kind = "info") {
-      noticeEl.classList.remove("hidden", "border-blue-200", "text-blue-700",
-                                "border-red-200", "text-red-700",
-                                "border-green-200", "text-green-700");
-
-      if (kind === "error") {
-        noticeEl.classList.add("border-red-200", "text-red-700");
-      } else if (kind === "success") {
-        noticeEl.classList.add("border-green-200", "text-green-700");
-      } else {
-        noticeEl.classList.add("border-blue-200", "text-blue-700");
-      }
-      noticeEl.textContent = msg;
-      setTimeout(() => noticeEl.classList.add("hidden"), 2500);
-    }
-
-    async function fetchJSON(url, options = {}) {
-      const res = await fetch(url, options);
-      let data = null;
-      try { data = await res.json(); } catch {}
-      if (!res.ok) {
-        const msg = (data && (data.error || data.message)) || res.statusText;
-        throw new Error(msg);
-      }
-      return data;
-    }
-
-    async function load() {
-      const RESTAURANT_ID = Number(restaurantIdInput.value || 1);
-      try {
-        const orders = await fetchJSON(`/api/orders?restaurant_id=${RESTAURANT_ID}`);
-        renderOrders(orders);
-        if (!orders || orders.length === 0) {
-          showNotice("No orders found for this restaurant yet.", "info");
-        }
-      } catch (e) {
-        showNotice("Failed to load orders: " + e.message, "error");
-      }
-    }
-
-    function renderOrders(orders) {
-      grid.innerHTML = "";
-      (orders || []).forEach((o) => {
-        const isPending = o.status === "pending";
-        const isInProgress = o.status === "in_progress";
-        const isCompleted = o.status === "completed";
-
-        const paymentClass = o.payment_status === "paid" ? "text-green-600" : "text-red-600";
-        const statusClass =
-          isCompleted ? "text-green-600" :
-          isInProgress ? "text-blue-600" :
-                         "text-yellow-600";
-
-        const itemsList = (o.items || [])
-          .map(i => `${i.item_name} x${i.quantity}`)
-          .join(", ");
-
-        const card = document.createElement("div");
-        card.className = "bg-white p-4 rounded-2xl shadow";
-
-        card.innerHTML = `
-          <div class="flex items-start justify-between gap-2">
-            <h2 class="text-lg font-bold">Order #${o.order_id}</h2>
-            <span class="text-xs text-gray-500">${new Date(o.created_at).toLocaleString()}</span>
-          </div>
-
-          <p class="mt-1 text-sm text-gray-700"><span class="font-semibold">Customer:</span> ${o.customer_name}</p>
-          <p class="mt-1 text-sm text-gray-700"><span class="font-semibold">Items:</span> ${itemsList || "(none)"}</p>
-          <p class="mt-1 text-sm text-gray-700"><span class="font-semibold">Payment:</span> <span class="${paymentClass}">${o.payment_status}</span></p>
-
-          <p class="mt-1 text-sm">
-            <span class="font-semibold">Status:</span>
-            <span class="${statusClass}">
-              ${o.status}${o.employee_name ? " · " + o.employee_name : ""}
-            </span>
-          </p>
-
-          <div class="mt-4 flex flex-wrap gap-2">
-            <button
-              data-id="${o.order_id}"
-              class="take-btn px-3 py-2 rounded-lg text-white ${isPending ? "bg-blue-600 hover:bg-blue-700" : "bg-gray-400 cursor-not-allowed"}"
-              ${isPending ? "" : "disabled"}>
-              Take Order
-            </button>
-
-            <button
-              data-id="${o.order_id}"
-              class="complete-btn px-3 py-2 rounded-lg text-white ${isInProgress ? "bg-green-600 hover:bg-green-700" : "bg-gray-400 cursor-not-allowed"}"
-              ${isInProgress ? "" : "disabled"}>
-              Mark as Completed
-            </button>
-          </div>
-        `;
-
-        grid.appendChild(card);
-      });
-
-      // Wire up actions
-      document.querySelectorAll(".take-btn").forEach(btn => {
-        btn.addEventListener("click", async (e) => {
-          const id = e.currentTarget.getAttribute("data-id");
-          const EMPLOYEE_ID = Number(employeeIdInput.value || 1);
-          try {
-            await fetchJSON(`/api/orders/${id}/take`, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ employee_id: EMPLOYEE_ID }),
-            });
-            showNotice(`Order #${id} taken.`, "success");
-            await load();
-          } catch (err) {
-            showNotice(`Failed to take order #${id}: ${err.message}`, "error");
-          }
-        });
-      });
-
-      document.querySelectorAll(".complete-btn").forEach(btn => {
-        btn.addEventListener("click", async (e) => {
-          const id = e.currentTarget.getAttribute("data-id");
-          try {
-            await fetchJSON(`/api/orders/${id}/complete`, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" }
-            });
-            showNotice(`Order #${id} completed.`, "success");
-            await load();
-          } catch (err) {
-            showNotice(`Failed to complete order #${id}: ${err.message}`, "error");
-          }
-        });
-      });
-    }
-
-    // Manual + automatic refresh
-    refreshBtn.addEventListener("click", load);
-    load();
-    setInterval(load, 5000); // auto-refresh every 5s
-  </script>
 </body>
 </html>
