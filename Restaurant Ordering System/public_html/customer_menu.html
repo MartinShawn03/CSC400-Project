@@ -6,14 +6,18 @@
   <title>Menu - Self Service Ordering</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-50 font-sans">
+<body class="bg-gradient-to-br from-yellow-50 to-orange-100 font-serif">
+
 
   <!-- Header -->
   <header class="bg-white shadow p-4 flex justify-between items-center">
     <h1 class="text-2xl font-bold text-gray-800">Our Menu</h1>
     <div class="space-x-4">
-        <a href="customer_main.html" class="bg-gray-200 text-gray-800 px-3 py-1 rounded hover:bg-gray-300">Home</a>
-        <a href="cart.html" class="text-blue-600 hover:underline">View Cart</a>
+      <a href="customer_main.html" class="bg-gray-200 text-gray-800 px-3 py-1 rounded hover:bg-gray-300">Home</a>
+      <a href="customer_cart.html"
+   class="inline-flex items-center bg-yellow-500 text-white px-4 py-2 rounded-lg shadow hover:bg-yellow-600 transition">
+  🛒 View Cart (<span id="cartCount">0</span>)
+</a>
     </div>
   </header>
 
@@ -21,34 +25,62 @@
   <main class="p-6">
     <div class="grid gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
 
-      <!-- Placeholders for Products --> <!-- Copy this block to add products -->
-      <div class="bg-white shadow rounded-lg overflow-hidden flex flex-col">
-        <img src="https://via.placeholder.com/300x200" alt="Product" class="w-full h-40 object-cover">
-        <div class="p-4 flex flex-col flex-grow">
-          <h2 class="text-lg font-semibold text-gray-800">Product 1</h2>
-          <p class="text-gray-600 text-sm flex-grow">Product 1 Description</p>
-          <p class="text-gray-900 font-bold mt-2">$Product 1 Price </p>
-          <button class="mt-3 bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700">
-            Add to Cart
-          </button>
-        </div>
-      </div>
+<!-- Latte -->
+<div class="bg-white shadow rounded-lg overflow-hidden flex flex-col">
+  <img src="https://images.unsplash.com/photo-1511920170033-f8396924c348?auto=format&fit=crop&w=600&q=80"
+       alt="Latte" class="w-full h-40 object-cover">
+  <div class="p-4 flex flex-col flex-grow">
+    <h2 class="text-lg font-semibold text-gray-800">Latte</h2>
+    <p class="text-gray-600 text-sm flex-grow">Creamy espresso with steamed milk.</p>
+    <p class="text-gray-900 font-bold mt-2">$9.99</p>
+    <button
+      class="mt-3 bg-blue-600 text-white py-2 px-4 rounded hover:bg-green-700"
+      data-add-to-cart
+      data-id="latte"
+      data-name="Latte"
+      data-price="9.99">
+      Add to Cart
+    </button>
+  </div>
+</div>
 
-      <div class="bg-white shadow rounded-lg overflow-hidden flex flex-col">
-        <img src="https://via.placeholder.com/300x200" alt="Product" class="w-full h-40 object-cover">
-        <div class="p-4 flex flex-col flex-grow">
-          <h2 class="text-lg font-semibold text-gray-800">Product 2</h2>
-          <p class="text-gray-600 text-sm flex-grow">Product 2 Description</p>
-          <p class="text-gray-900 font-bold mt-2">$Product 2 Price</p>
-          <button class="mt-3 bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700">
-            Add to Cart
-          </button>
-        </div>
-      </div>
+<!-- Cappuccino -->
+<div class="bg-white shadow rounded-lg overflow-hidden flex flex-col">
+  <img src="https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&w=600&q=80"
+       alt="Cappuccino" class="w-full h-40 object-cover">
+  <div class="p-4 flex flex-col flex-grow">
+    <h2 class="text-lg font-semibold text-gray-800">Cappuccino</h2>
+    <p class="text-gray-600 text-sm flex-grow">Espresso with foamed milk and a dash of cocoa.</p>
+    <p class="text-gray-900 font-bold mt-2">$19.50</p>
+    <button
+      class="mt-3 bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700"
+      data-add-to-cart
+      data-id="cappuccino"
+      data-name="Cappuccino"
+      data-price="19.50">
+      Add to Cart
+    </button>
+  </div>
+</div>
 
-    </div>
   </main>
 
+    <!-- Shared cart logic -->
+  <script src="js/cart.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      Cart.updateCartCount('cartCount');
+
+      document.querySelectorAll('[data-add-to-cart]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const { id, name, price } = btn.dataset;
+          const priceCents = Math.round(parseFloat(price) * 100);
+          Cart.addItem({ id, name, priceCents, qty: 1 });
+          Cart.updateCartCount('cartCount');
+          Cart.showToast(`${name} added to cart ✅`);
+        });
+      });
+    });
+  </script>
 </body>
 </html>
-

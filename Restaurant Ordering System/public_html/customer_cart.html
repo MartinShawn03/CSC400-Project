@@ -2,57 +2,86 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Cart - Self Service Ordering</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Your Cart - Self Service Ordering</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-50 font-sans">
+<body class="bg-gradient-to-br from-yellow-50 to-orange-100 font-serif">
 
   <!-- Header -->
   <header class="bg-white shadow p-4 flex justify-between items-center">
     <h1 class="text-2xl font-bold text-gray-800">Your Cart</h1>
     <div class="space-x-4">
-      <a href="customer_main.html" class="bg-gray-200 text-gray-800 px-3 py-1 rounded hover:bg-gray-300">Home</a>
-      <a href="customer_menu.html" class="text-blue-600 hover:underline">Back to Menu</a>
+      <a href="customer_main.html" class="inline-flex items-center bg-yellow-500 text-white px-4 py-2 rounded-lg shadow hover:bg-yellow-600 transition">Home</a>
+      <a href="customer_menu.html" class="inline-flex items-center bg-yellow-500 text-white px-4 py-2 rounded-lg shadow hover:bg-yellow-600 transition">Menu</a>
+      <span class="text-gray-600">Items: <span id="cartCount">0</span></span>
     </div>
   </header>
 
+  <main class="max-w-4xl mx-auto p-6">
 
-  <!-- Cart Content -->
-  <main class="p-6 max-w-4xl mx-auto">
-    <div class="bg-white shadow rounded-lg p-6 mb-6">
-      <h2 class="text-xl font-semibold mb-4">Items in Your Cart</h2>
+    <!-- Empty state -->
+    <div id="emptyState" class="hidden bg-white border border-dashed border-gray-300 rounded-lg p-8 text-center text-gray-600">
+      <p class="mb-4">Your cart is empty.</p>
+      <a href="customer_menu.html" class="inline-block bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Browse Menu</a>
+    </div>
 
-      <!-- Cart Item -->
-      <div class="flex items-center justify-between border-b py-4">
-        <div class="flex items-center space-x-4">
-          <img src="https://via.placeholder.com/80x60" alt="Cappuccino" class="w-20 h-16 object-cover rounded">
-          <div>
-            <p class="font-semibold text-gray-800">Product 1</p>
-            <p class="text-gray-600 text-sm">Product 1 Description</p>
-          </div>
-        </div>
-        <div class="flex items-center space-x-4">
-          <input type="number" value="1" min="1" class="w-16 border rounded px-2 py-1 text-center">
-          <p class="font-bold text-gray-900">$Product 1 Price</p>
-          <button class="text-red-600 hover:underline">Remove</button>
-        </div>
+    <!-- Cart table -->
+    <div id="cartBox" class="bg-white/95 shadow-xl rounded-xl overflow-hidden border-2 border-yellow-300">
+      <table class="w-full text-left">
+        <thead class="bg-amber-600 text-white">
+          <tr>
+            <th class="py-2 px-3">Item</th>
+            <th class="py-2 px-3">Price</th>
+            <th class="py-2 px-3">Qty</th>
+            <th class="py-2 px-3">Line Total</th>
+            <th class="py-2 px-3">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="cartBody"></tbody>
+      </table>
+    </div>
+
+    <!-- Totals + actions -->
+    <div id="totalsRow" class="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <div class="text-lg">
+        <div>Subtotal: <span id="cartSubtotal" class="font-semibold">$0.00</span></div>
+        <div>Total: <span id="cartTotal" class="font-semibold">$0.00</span></div>
       </div>
-
-      <!-- Cart Total -->
-      <div class="flex justify-end mt-6 space-x-6">
-        <p class="text-lg font-semibold">Total:</p>
-        <p class="text-lg font-bold">$14.50</p>
-      </div>
-
-      <!-- Checkout Button -->
-      <div class="flex justify-end mt-4">
-        <button class="bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700">
-          Checkout
-        </button>
+      <div class="space-x-2">
+        <button id="clearCart" class="bg-rose-600 text-white px-4 py-2 rounded-lg shadow hover:bg-rose-700 transition">Clear Cart</button>
+        <a href="customer_checkout.html" class="bg-emerald-600 text-white px-4 py-2 rounded-lg shadow hover:bg-emerald-700 transition">Proceed to Checkout</a>
       </div>
     </div>
+
   </main>
 
+  <!-- Shared cart logic + page glue -->
+    <script src="js/cart.js"></script>
+  <script>
+    function draw() {
+      Cart.renderCart({
+        bodyId: 'cartBody',
+        subtotalId: 'cartSubtotal',
+        totalId: 'cartTotal',
+        countId: 'cartCount',
+        emptyStateId: 'emptyState',
+        boxId: 'cartBox',
+        totalsRowId: 'totalsRow'
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      draw();
+
+      document.getElementById('clearCart').addEventListener('click', () => {
+        Cart.clearCart();
+        draw();                                
+        Cart.updateCartCount('cartCount');    
+        Cart.showToast('Cart cleared 🗑️');
+      });
+    });
+  </script>
 </body>
 </html>
+
