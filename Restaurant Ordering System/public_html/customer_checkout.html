@@ -6,14 +6,17 @@
   <title>Checkout - Self Service Ordering</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-50 font-sans">
+<body class="bg-gradient-to-br from-yellow-50 to-orange-100 font-serif">
 
   <!-- Header -->
   <header class="bg-white shadow p-4 flex justify-between items-center">
     <h1 class="text-2xl font-bold text-gray-800">Checkout</h1>
     <div class="space-x-4">
       <a href="customer_main.html" class="bg-gray-200 text-gray-800 px-3 py-1 rounded hover:bg-gray-300">Home</a>
-      <a href="customer_cart.html" class="text-blue-600 hover:underline">Back to Cart</a>
+      <a href="customer_cart.html"
+   class="inline-flex items-center bg-yellow-500 text-white px-4 py-2 rounded-lg shadow hover:bg-yellow-600 transition">
+  🛒 View Cart (<span id="cartCount">0</span>)
+</a>
     </div>
   </header>
 
@@ -28,6 +31,7 @@
         <label class="block text-gray-700 font-medium mb-1">Full Name</label>
         <input type="text" placeholder="John Doe" class="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-600">
       </div>
+
 
       <!-- Email -->
       <div>
@@ -55,8 +59,9 @@
       <!-- Total Amount -->
       <div class="flex justify-between items-center mt-6">
         <p class="text-lg font-semibold">Total:</p>
-        <p class="text-lg font-bold">$__</p>
+        <p class="text-lg font-bold" id="checkoutPageTotal">$0.00</p>
       </div>
+
 
       <!-- Place Order Button -->
       <div class="flex justify-end mt-4">
@@ -66,7 +71,21 @@
       </div>
     </form>
   </main>
+<!-- Shared cart logic + checkout glue -->
+<script src="js/cart.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    // update cart count in header
+    Cart.updateCartCount('cartCount');
 
+    // get totals
+    const { totalCents } = Cart.totals();
+
+    // ✅ update only the bottom total
+    const totalEl = document.getElementById('checkoutPageTotal');
+    if (totalEl) totalEl.textContent = Cart.formatCents(totalCents);
+  });
+</script>
 </body>
 </html>
 

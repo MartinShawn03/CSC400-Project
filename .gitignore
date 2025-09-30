@@ -1,0 +1,23 @@
+# Node
+node_modules/
+
+# Env files
+.env
+.env.*
+
+# Build outputs
+dist/
+build/
+coverage/
+
+# Logs
+logs/
+*.log
+
+# macOS
+.DS_Store
+
+# Editor junk
+.vscode/
+.idea/
+
