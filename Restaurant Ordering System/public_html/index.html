@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Welcome | Self-Service Ordering System</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gradient-to-br from-yellow-50 to-orange-100 font-serif min-h-screen flex flex-col">
+  <!-- Main Section -->
+  <main class="flex flex-col items-center justify-center flex-grow text-center p-6">
+    <h2 class="text-3xl font-bold text-gray-800 mb-4">Who are you?</h2>
+    <p class="text-gray-600 mb-8">Choose your portal below to get started.</p>
+
+    <div class="flex flex-col sm:flex-row gap-6">
+      <!-- Customer -->
+      <a href="/Customer/customer_main.html"
+         class="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-xl shadow-md transition transform hover:scale-105">
+        Customer
+      </a>
+
+      <!-- Employee -->
+      <a href="/Employee/employee_login.html"
+         class="bg-green-600 hover:bg-green-700 text-white px-8 py-4 rounded-xl shadow-md transition transform hover:scale-105">
+        Employee
+      </a>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-white text-gray-600 text-center py-3 shadow-inner">
+    <p class="text-sm">&copy; 2025 Local Business Self-Service POS System</p>
+  </footer>
+</body>
+</html>
