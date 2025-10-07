@@ -20,7 +20,7 @@ const server = http.createServer((req, res) => {
 
     // Default to customer_main.html
     if (reqPath == '/' || reqPath == '') {
-        reqPath = '/customer_main.html';
+        reqPath = '../customer_main.html';
     }
 
     // Map virtual URL path to actual filesystem path
