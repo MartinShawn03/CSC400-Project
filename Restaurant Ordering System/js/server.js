@@ -18,23 +18,22 @@ const server = http.createServer((req, res) => {
    // let reqPath = decodeURIComponent(req.url);
     let reqPath = decodeURIComponent(req.url.split('?')[0]);
 
-    // Default to customer_main.html
-    if (reqPath == '/' || reqPath == '') {
-        reqPath = '../customer_main.html';
-    }
+   // Default to customer_main.html
+   if (reqPath === '/' || reqPath === '') {
+       reqPath = '/Customer/customer_main.html';
+   }
 
-    // Map virtual URL path to actual filesystem path
-    let filePath;
-    if (reqPath.startsWith('/image') || reqPath.endsWith('.html')) {
-        filePath = path.join(baseDir, 'public_html', reqPath);
-    } else if (reqPath.startsWith('/css')) {
-        filePath = path.join(baseDir, 'css', reqPath.replace('/css/', ''));
-    } else if (reqPath.startsWith('/js')) {
-        filePath = path.join(baseDir, 'js', reqPath.replace('/js/', ''));
-    } else {
-        filePath = path.join(baseDir, 'public_html', reqPath);
-    }
-
+   // Map virtual URL path to actual filesystem path
+   let filePath;
+   if (reqPath.startsWith('/image') || reqPath.endsWith('.html')) {
+       filePath = path.join(baseDir, 'public_html', reqPath);
+   } else if (reqPath.startsWith('/css')) {
+       filePath = path.join(baseDir, 'public_html', 'css', reqPath.replace('/css/', ''));
+   } else if (reqPath.startsWith('/js')) {
+       filePath = path.join(baseDir, 'public_html', 'js', reqPath.replace('/js/', ''));
+   } else {
+       filePath = path.join(baseDir, 'public_html', reqPath);
+   }
 
     const ext = path.extname(filePath).toLowerCase();
     let contentType = 'text/html';
