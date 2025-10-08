@@ -22,6 +22,47 @@ const server = http.createServer((req, res) => {
     if (reqPath === '/' || reqPath === '') {
       reqPath = '/index.html';
     }
+   // Default to customer_main.html
+   if (reqPath === '/' || reqPath === '') {
+       reqPath = '/Customer/customer_main.html';
+   }
+   // ✅ STEP 1: API route for registration
+    if (req.method === 'POST' && req.url === '/api/register') {
+        let body = '';
+        req.on('data', chunk => body += chunk);
+        req.on('end', () => {
+            try {
+                const data = JSON.parse(body);
+                const { name, phone, email, password } = data;
+
+                // Validate inputs
+                if (!name || !email || !password) {
+                    res.writeHead(400, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ success: false, message: 'Missing required fields' }));
+                    return;
+                }
+
+                // SQL insert into your Customers table
+                const sql = 'INSERT INTO Customers (name, phone, email, password) VALUES (?, ?, ?, ?)';
+                connection_pool.query(sql, [name, phone, email, password], (err, results) => {
+                    if (err) {
+                        console.error('DB Error:', err);
+                        res.writeHead(500, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ success: false, message: 'Database error' }));
+                        return;
+                    }
+
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ success: true }));
+                });
+            } catch (e) {
+                console.error('JSON Parse Error:', e);
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: false, message: 'Invalid request' }));
+            }
+        });
+        return; // ⛔ stop here — don’t run the static file logic
+    }
 
     // Map virtual URL path to actual filesystem path
     let filePath;
