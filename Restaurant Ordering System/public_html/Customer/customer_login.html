@@ -72,68 +72,52 @@
       }
     }
 
-    document.getElementById("loginForm").addEventListener("submit", (e) => {
+    document.getElementById("loginForm").addEventListener("submit", async (e) => {
       e.preventDefault();
 
       const email = document.getElementById("email").value.trim();
       const password = document.getElementById("password").value.trim();
-      const storedUser = JSON.parse(localStorage.getItem("demoUser"));
-
-    if (!email || !password) {
-      showToast("❌ Please enter both email and password.", "error");
-      return;
-    }
-
-    if (storedUser && email === storedUser.email && password === storedUser.password) {
-      showToast("✅ Login successful!", "success");
-      setTimeout(() => window.location.href = "customer_main.html", 2000);
-    } else {
-      showToast("❌ Invalid email or password.", "error");
-    }
-  });
-</script>
-
-<!-- ✅ Toast HTML/JS -->
-<div id="toast" class="hidden fixed bottom-6 right-6 sm:right-6 sm:bottom-6 z-50"></div>
-<script>
-  function showToast(message, type = "success") {
-    const toast = document.getElementById("toast");
-    toast.innerHTML = `
-      <div class="px-4 py-3 rounded-lg shadow-md text-white text-sm sm:text-base animate-fade-in-down
-        ${type === "error" ? "bg-red-600" : "bg-green-600"}">
-        ${message}
-      </div>
-    `;
-    toast.classList.remove("hidden");
-
-    if (window.innerWidth < 640) {
-      toast.classList.add("left-1/2", "-translate-x-1/2");
-      toast.classList.remove("right-6");
-    } else {
-      toast.classList.remove("left-1/2", "-translate-x-1/2");
-      toast.classList.add("right-6");
-    }
-
-    setTimeout(() => {
-      toast.classList.add("hidden");
-    }, 3000);
-  }
-
-  tailwind.config = {
-    theme: {
-      extend: {
-        keyframes: {
-          "fade-in-down": {
-            "0%": { opacity: "0", transform: "translateY(20px)" },
-            "100%": { opacity: "1", transform: "translateY(0)" }
-          }
-        },
-        animation: {
-          "fade-in-down": "fade-in-down 0.3s ease-out"
-        }
+      
+      if (!email || !password) {
+        showToast("❌ Please enter both email and password.", "error");
+        return;
       }
+
+      try {
+        const res = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+
+        const data = await res.json();
+
+        if (res.ok && data.success) {
+          showToast("✅ Login successful! Redirecting...");
+          setTimeout(() => window.location.href = "/Customer/customer_menu.html", 1000);
+        } else {
+          showToast("❌ " + (data.message || 'Invalid email or password.'), "error");
+        }
+      } catch (err) {
+        console.error(err);
+        showToast("❌ Server connection error", "error");
+      }
+    });
+  </script>
+
+  <!-- Simple toast -->
+  <div id="toast" class="hidden fixed bottom-6 right-6 sm:right-6 sm:bottom-6 z-50"></div>
+  <script>
+    function showToast(message, type = "success") {
+      const toast = document.getElementById("toast");
+      toast.innerHTML = `
+        <div class="px-4 py-3 rounded-lg shadow-md text-white text-sm sm:text-base
+                    ${type === "error" ? "bg-red-600" : "bg-green-600"}">
+          ${message}
+        </div>`;
+      toast.classList.remove("hidden");
+      setTimeout(() => toast.classList.add("hidden"), 2000);
     }
-  };
-</script>
+  </script>
 </body>
 </html>
