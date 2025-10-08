@@ -64,6 +64,47 @@ const server = http.createServer((req, res) => {
         return; // ⛔ stop here — don’t run the static file logic
     }
 
+    if (req.method === 'POST' && req.url === '/api/login') {
+        let body = '';
+        req.on('data', chunk => body += chunk);
+        req.on('end', () => {
+            try {
+                const data = JSON.parse(body);
+                const { email, password } = data;
+
+                if (!email || !password) {
+                    res.writeHead(400, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ success: false, message: 'Missing email or password' }));
+                    return;
+                }
+
+                // Plain-text check for now (testing). Later: switch to bcrypt.
+                const sql = 'SELECT customer_id, name, email FROM Customers WHERE email = ? AND password = ? LIMIT 1';
+                connection_pool.query(sql, [email, password], (err, rows) => {
+                    if (err) {
+                        console.error('DB Error:', err);
+                        res.writeHead(500, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ success: false, message: 'Database error' }));
+                        return;
+                    }
+
+                    if (rows && rows.length === 1) {
+                        res.writeHead(200, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ success: true, user: rows[0] }));
+                    } else {
+                        res.writeHead(401, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ success: false, message: 'Invalid email or password' }));
+                    }
+                });
+            } catch (e) {
+                console.error('JSON Parse Error:', e);
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: false, message: 'Invalid request' }));
+            }
+        });
+        return; // ⛔ important
+    }
+
     // Map virtual URL path to actual filesystem path
     let filePath;
     if (reqPath.endsWith('.html')) {
