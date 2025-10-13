@@ -7,43 +7,26 @@
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-50 font-sans">
-  
   <header class="bg-white shadow p-4 flex justify-between items-center">
-    <h1 class="text-2xl font-bold text-gray-800">Welcome to Our Restaurant - Employee</h1>
-    <a href="orders.html" class="text-blue-600 hover:underline">View Pending Orders</a>
+    <h1 class="text-2xl font-bold text-gray-800">Employee Dashboard</h1>
+    <button id="logoutBtn" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600">Logout</button>
   </header>
-  
+
   <main class="p-6 max-w-4xl mx-auto text-center">
-    <h2 class="text-3xl font-bold mb-4 text-gray-800">Manage Our Restaurant Easily</h2>
-    <p class="text-gray-600 mb-6">Edit the menu and confirm customer orders.</p>
-   
-    
+    <h2 class="text-3xl font-bold mb-4 text-gray-800">Manage Our Restaurant</h2>
+    <p class="text-gray-600 mb-6">Access orders and menu options below.</p>
+
     <div class="space-x-4">
       <a href="employee_menu.html" class="bg-blue-600 text-white px-6 py-3 rounded hover:bg-blue-700">View Menu</a>
-      <a href="orders.html" class="bg-green-600 text-white px-6 py-3 rounded hover:bg-green-700">Confirm Orders</a>
+      <a href="orders.html" class="bg-green-600 text-white px-6 py-3 rounded hover:bg-green-700">View Orders</a>
     </div>
-   
-    
-    <section class="grid gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 mt-8">
-      <div class="bg-white shadow rounded-lg overflow-hidden flex flex-col">
-        <img src="https://via.placeholder.com/300x200" alt="Product 1" class="w-full h-40 object-cover">
-        <div class="p-4 flex flex-col flex-grow">
-          <h2 class="text-lg font-semibold text-gray-800">Product 1</h2>
-          <p class="text-gray-600 text-sm flex-grow">Product Description 1</p>
-          <p class="text-gray-900 font-bold mt-2">$Product Price 1</p>
-          <button class="bg-yellow-500 text-white px-3 py-1 rounded mt-2 hover:bg-yellow-600">Edit Item</button>
-        </div>
-      </div>
-      <div class="bg-white shadow rounded-lg overflow-hidden flex flex-col">
-        <img src="https://via.placeholder.com/300x200" alt="Product 2" class="w-full h-40 object-cover">
-        <div class="p-4 flex flex-col flex-grow">
-          <h2 class="text-lg font-semibold text-gray-800">Product 2</h2>
-          <p class="text-gray-600 text-sm flex-grow">Product 2 Description</p>
-          <p class="text-gray-900 font-bold mt-2">$Product 2 Price</p>
-          <button class="bg-yellow-500 text-white px-3 py-1 rounded mt-2 hover:bg-yellow-600">Edit Item</button>
-        </div>
-      </div>
-    </section>
   </main>
+
+  <script>
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      await fetch('/Employee/logout', { method: 'POST' });
+      window.location.href = '/Employee/employee_login.html';
+    });
+  </script>
 </body>
 </html>
