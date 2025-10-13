@@ -2,153 +2,190 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const mysql = require('mysql2');
-const url = require('url');
+const { randomBytes } = require('crypto');
 
 const baseDir = path.resolve(__dirname, '..');
 
 const connection_pool = mysql.createPool({
-    host: '136.113.3.49',
-    user: 'nodeuser',
-    password: 'csc400',
-    database: 'restaurant_db',
-    connectionLimit: 10
+  host: '136.113.3.49',
+  user: 'nodeuser',
+  password: 'csc400',
+  database: 'restaurant_db',
+  connectionLimit: 10
 });
+
+// Simple in-memory session store
+const sessions = {};
 
 const server = http.createServer((req, res) => {
-   // let reqPath = decodeURIComponent(req.url);
-    let reqPath = decodeURIComponent(req.url.split('?')[0]);
+  let reqPath = decodeURIComponent(req.url.split('?')[0]);
 
-    // Default to landing page (index.html)
-    if (reqPath === '/' || reqPath === '') {
-      reqPath = '/index.html';
-    }
-   // Default to customer_main.html
-   if (reqPath === '/' || reqPath === '') {
-       reqPath = '/Customer/customer_main.html';
-   }
-   // ✅ STEP 1: API route for registration
-    if (req.method === 'POST' && req.url === '/api/register') {
-        let body = '';
-        req.on('data', chunk => body += chunk);
-        req.on('end', () => {
-            try {
-                const data = JSON.parse(body);
-                const { name, phone, email, password } = data;
+  // Default landing
+  if (reqPath === '/' || reqPath === '') {
+    reqPath = '/index.html';
+  }
 
-                // Validate inputs
-                if (!name || !email || !password) {
-                    res.writeHead(400, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ success: false, message: 'Missing required fields' }));
-                    return;
-                }
+  //  EMPLOYEE LOGIN
+  if (req.method === 'POST' && (reqPath === '/Employee/login' || reqPath === '/employee/login')) {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', () => {
+      try {
+        const { username, password } = JSON.parse(body);
+        if (!username || !password) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ success: false, message: 'Missing username or password' }));
+        }
 
-                // SQL insert into your Customers table
-                const sql = 'INSERT INTO Customers (name, phone, email, password) VALUES (?, ?, ?, ?)';
-                connection_pool.query(sql, [name, phone, email, password], (err, results) => {
-                    if (err) {
-                        console.error('DB Error:', err);
-                        res.writeHead(500, { 'Content-Type': 'application/json' });
-                        res.end(JSON.stringify({ success: false, message: 'Database error' }));
-                        return;
-                    }
+        connection_pool.query('SELECT * FROM Employees WHERE username = ? LIMIT 1', [username], (err, results) => {
+          if (err) {
+            console.error('DB Error:', err);
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ success: false, message: 'Database error' }));
+          }
 
-                    res.writeHead(200, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ success: true }));
-                });
-            } catch (e) {
-                console.error('JSON Parse Error:', e);
-                res.writeHead(400, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ success: false, message: 'Invalid request' }));
-            }
+          if (!results.length) {
+            res.writeHead(401, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ success: false, message: 'User not found' }));
+          }
+
+          const employee = results[0];
+          if (employee.password !== password) {
+            res.writeHead(401, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ success: false, message: 'Invalid password' }));
+          }
+
+          // Create session token
+          const token = randomBytes(16).toString('hex');
+          sessions[token] = {
+            id: employee.employee_id,
+            username: employee.username,
+            role: employee.role || 'Cashier'
+          };
+
+          res.writeHead(200, {
+            'Content-Type': 'application/json',
+            'Set-Cookie': `session=${token}; HttpOnly; Path=/; Max-Age=3600`
+          });
+          res.end(JSON.stringify({ success: true, role: employee.role }));
         });
-        return; // ⛔ stop here — don’t run the static file logic
-    }
-
-    if (req.method === 'POST' && req.url === '/api/login') {
-        let body = '';
-        req.on('data', chunk => body += chunk);
-        req.on('end', () => {
-            try {
-                const data = JSON.parse(body);
-                const { email, password } = data;
-
-                if (!email || !password) {
-                    res.writeHead(400, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ success: false, message: 'Missing email or password' }));
-                    return;
-                }
-
-                // Plain-text check for now (testing). Later: switch to bcrypt.
-                const sql = 'SELECT customer_id, name, email FROM Customers WHERE email = ? AND password = ? LIMIT 1';
-                connection_pool.query(sql, [email, password], (err, rows) => {
-                    if (err) {
-                        console.error('DB Error:', err);
-                        res.writeHead(500, { 'Content-Type': 'application/json' });
-                        res.end(JSON.stringify({ success: false, message: 'Database error' }));
-                        return;
-                    }
-
-                    if (rows && rows.length === 1) {
-                        res.writeHead(200, { 'Content-Type': 'application/json' });
-                        res.end(JSON.stringify({ success: true, user: rows[0] }));
-                    } else {
-                        res.writeHead(401, { 'Content-Type': 'application/json' });
-                        res.end(JSON.stringify({ success: false, message: 'Invalid email or password' }));
-                    }
-                });
-            } catch (e) {
-                console.error('JSON Parse Error:', e);
-                res.writeHead(400, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ success: false, message: 'Invalid request' }));
-            }
-        });
-        return; // ⛔ important
-    }
-
-    // Map virtual URL path to actual filesystem path
-    let filePath;
-    if (reqPath.endsWith('.html')) {
-      // All HTML files live inside public_html
-      filePath = path.join(baseDir, 'public_html', reqPath);
-    } else if (reqPath.startsWith('/css')) {
-      filePath = path.join(baseDir, 'public_html', 'css', reqPath.replace('/css/', ''));
-    } else if (reqPath.startsWith('/js')) {
-      filePath = path.join(baseDir, 'public_html', 'js', reqPath.replace('/js/', ''));
-    } else if (reqPath.startsWith('/Customer')) {
-      filePath = path.join(baseDir, 'public_html', reqPath);
-    } else if (reqPath.startsWith('/Employee')) {
-      filePath = path.join(baseDir, 'public_html', reqPath);
-    } else {
-      // Default fallback (e.g. for images or other static files)
-      filePath = path.join(baseDir, 'public_html', reqPath);
-    }
-
-    const ext = path.extname(filePath).toLowerCase();
-    let contentType = 'text/html';
-    switch (ext) {
-        case '.css': contentType = 'text/css'; break;
-        case '.js': contentType = 'application/javascript'; break;
-        case '.mp3': contentType = 'audio/mpeg'; break;
-        case '.png': contentType = 'image/png'; break;
-        case '.jpg':
-        case '.jpeg': contentType = 'image/jpeg'; break;
-        case '.ico': contentType = 'image/x-icon'; break;
-    }
-
-
-    fs.readFile(filePath, (err, data) => {
-        if (err) {
-            res.writeHead(404, { 'Content-Type': 'text/plain' });
-            res.end('404 - File Not Found');
-            } else {
-                res.writeHead(200, { 'Content-Type': contentType });
-                res.end(data);
-            }
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, message: 'Invalid request' }));
+      }
     });
-    
+    return;
+  }
+
+  //  EMPLOYEE LOGOUT
+  if (req.method === 'POST' && (reqPath === '/Employee/logout' || reqPath === '/employee/logout')) {
+    const cookie = req.headers.cookie || '';
+    const match = cookie.match(/session=([a-f0-9]+)/);
+    if (match) delete sessions[match[1]];
+    res.writeHead(200, {
+      'Content-Type': 'application/json',
+      'Set-Cookie': 'session=; HttpOnly; Path=/; Max-Age=0'
+    });
+    return res.end(JSON.stringify({ success: true }));
+  }
+
+  //  Protect employee_main.html
+  if (reqPath === '/Employee/employee_main.html') {
+    const token = (req.headers.cookie || '').match(/session=([a-f0-9]+)/)?.[1];
+    if (!token || !sessions[token]) {
+      res.writeHead(302, { Location: '/Employee/employee_login.html' });
+      return res.end();
+    }
+  }
+
+  //  Protect admin_main.html (Admin only)
+  if (reqPath === '/Employee/admin_main.html') {
+    const token = (req.headers.cookie || '').match(/session=([a-f0-9]+)/)?.[1];
+    const session = token ? sessions[token] : null;
+
+    if (!session) {
+      res.writeHead(302, { Location: '/Employee/employee_login.html' });
+      return res.end();
+    }
+
+    if (String(session.role).toLowerCase() !== 'admin') {
+      res.writeHead(302, { Location: '/Employee/employee_main.html' });
+      return res.end();
+    }
+  }
+
+  //  Customer registration and login
+  if (req.method === 'POST' && req.url === '/api/register') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', () => {
+      const { name, phone, email, password } = JSON.parse(body);
+      connection_pool.query(
+        'INSERT INTO Customers (name, phone, email, password) VALUES (?, ?, ?, ?)',
+        [name, phone, email, password],
+        (err) => {
+          if (err) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ success: false, message: 'Database error' }));
+          }
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true }));
+        }
+      );
+    });
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/login') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', () => {
+      const { email, password } = JSON.parse(body);
+      connection_pool.query(
+        'SELECT customer_id, name, email FROM Customers WHERE email = ? AND password = ? LIMIT 1',
+        [email, password],
+        (err, rows) => {
+          if (err) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ success: false, message: 'Database error' }));
+          }
+          if (rows.length === 1) {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: true, user: rows[0] }));
+          } else {
+            res.writeHead(401, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: false, message: 'Invalid credentials' }));
+          }
+        }
+      );
+    });
+    return;
+  }
+
+  //  Static file handler
+  const filePath = path.join(baseDir, 'public_html', reqPath);
+  const ext = path.extname(filePath).toLowerCase();
+  const mimeTypes = {
+    '.html': 'text/html',
+    '.css': 'text/css',
+    '.js': 'application/javascript',
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.mp3': 'audio/mpeg',
+    '.ico': 'image/x-icon'
+  };
+  const contentType = mimeTypes[ext] || 'text/html';
+
+  fs.readFile(filePath, (err, data) => {
+    if (err) {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('404 - File Not Found');
+    } else {
+      res.writeHead(200, { 'Content-Type': contentType });
+      res.end(data);
+    }
+  });
 });
 
-
-server.listen(80, () => {
-    console.log('Server running on port 80');
-});
+server.listen(80, () => console.log(' Server running on port 80'));
