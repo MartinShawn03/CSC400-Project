@@ -2,86 +2,117 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Your Cart - Self Service Ordering</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gradient-to-br from-yellow-50 to-orange-100 font-serif">
+
+<body class="bg-gray-50 text-gray-800 font-sans min-h-screen flex flex-col">
 
   <!-- Header -->
-  <header class="bg-white shadow p-4 flex justify-between items-center">
-    <h1 class="text-2xl font-bold text-gray-800">Your Cart</h1>
-    <div class="space-x-4">
-      <a href="/Customer/customer_main.html" class="inline-flex items-center bg-yellow-500 text-white px-4 py-2 rounded-lg shadow hover:bg-yellow-600 transition">Home</a>
-      <a href="/Customer/customer_menu.html" class="inline-flex items-center bg-yellow-500 text-white px-4 py-2 rounded-lg shadow hover:bg-yellow-600 transition">Menu</a>
-      <span class="text-gray-600">Items: <span id="cartCount">0</span></span>
+  <header class="bg-white border-b border-gray-200">
+    <div class="max-w-6xl mx-auto flex justify-between items-center p-4">
+      <h1 class="text-xl sm:text-2xl font-semibold">Your Cart</h1>
+      <a href="customer_menu.html" class="text-sm text-blue-600 hover:underline">← Continue Shopping</a>
     </div>
   </header>
 
-  <main class="max-w-4xl mx-auto p-6">
+  <!-- Main -->
+  <main class="flex-grow max-w-4xl mx-auto p-4 sm:p-6">
+    <section id="cartContainer" class="space-y-4">
+      <p class="text-center text-gray-500">Loading your cart...</p>
+    </section>
 
-    <!-- Empty state -->
-    <div id="emptyState" class="hidden bg-white border border-dashed border-gray-300 rounded-lg p-8 text-center text-gray-600">
-      <p class="mb-4">Your cart is empty.</p>
-      <a href="/Customer/customer_menu.html" class="inline-block bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Browse Menu</a>
+    <!-- Cart Summary -->
+    <div id="cartSummary" class="mt-8 text-right hidden">
+      <p class="text-lg font-semibold text-gray-800">Total: <span id="totalPrice">$0.00</span></p>
+      <button onclick="goToCheckout()"
+              class="mt-4 bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 transition">
+        Proceed to Checkout
+      </button>
     </div>
-
-    <!-- Cart table -->
-    <div id="cartBox" class="bg-white/95 shadow-xl rounded-xl overflow-hidden border-2 border-yellow-300">
-      <table class="w-full text-left">
-        <thead class="bg-amber-600 text-white">
-          <tr>
-            <th class="py-2 px-3">Item</th>
-            <th class="py-2 px-3">Price</th>
-            <th class="py-2 px-3">Qty</th>
-            <th class="py-2 px-3">Line Total</th>
-            <th class="py-2 px-3">Actions</th>
-          </tr>
-        </thead>
-        <tbody id="cartBody"></tbody>
-      </table>
-    </div>
-
-    <!-- Totals + actions -->
-    <div id="totalsRow" class="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-      <div class="text-lg">
-        <div>Subtotal: <span id="cartSubtotal" class="font-semibold">$0.00</span></div>
-        <div>Total: <span id="cartTotal" class="font-semibold">$0.00</span></div>
-      </div>
-      <div class="space-x-2">
-        <button id="clearCart" class="bg-rose-600 text-white px-4 py-2 rounded-lg shadow hover:bg-rose-700 transition">Clear Cart</button>
-        <a href="/Customer/customer_checkout.html" class="bg-emerald-600 text-white px-4 py-2 rounded-lg shadow hover:bg-emerald-700 transition">Proceed to Checkout</a>
-      </div>
-    </div> 
-
   </main>
 
-  <!-- Shared cart logic + page glue -->
-    <script src="js/cart.js"></script>
+  <footer class="bg-white border-t border-gray-200 mt-10">
+    <div class="max-w-6xl mx-auto p-4 text-center text-xs text-gray-500">
+      &copy; 2025 Self Service Ordering. All rights reserved.
+    </div>
+  </footer>
+
+  <!-- 🛒 Cart Logic -->
   <script>
-    function draw() {
-      Cart.renderCart({
-        bodyId: 'cartBody',
-        subtotalId: 'cartSubtotal',
-        totalId: 'cartTotal',
-        countId: 'cartCount',
-        emptyStateId: 'emptyState',
-        boxId: 'cartBox',
-        totalsRowId: 'totalsRow'
-      });
+    const Cart = {
+      items: JSON.parse(localStorage.getItem('cartItems')) || [],
+
+      save() {
+        localStorage.setItem('cartItems', JSON.stringify(this.items));
+      },
+
+      removeItem(id) {
+        this.items = this.items.filter(i => i.id !== id);
+        this.save();
+        renderCart();
+      },
+
+      updateQty(id, newQty) {
+        const item = this.items.find(i => i.id === id);
+        if (item) {
+          item.qty = Math.max(1, newQty); // Minimum 1
+          this.save();
+          renderCart();
+        }
+      },
+
+      getTotalPrice() {
+        return this.items.reduce((sum, item) => sum + item.priceCents * item.qty, 0) / 100;
+      },
+
+      clear() {
+        this.items = [];
+        this.save();
+        renderCart();
+      }
+    };
+
+    // 🧩 Render Cart
+    function renderCart() {
+      const container = document.getElementById('cartContainer');
+      const summary = document.getElementById('cartSummary');
+      const totalEl = document.getElementById('totalPrice');
+
+      if (Cart.items.length === 0) {
+        container.innerHTML = '<p class="text-center text-gray-500">Your cart is empty.</p>';
+        summary.classList.add('hidden');
+        return;
+      }
+
+      // Show cart summary
+      summary.classList.remove('hidden');
+      totalEl.textContent = `$${Cart.getTotalPrice().toFixed(2)}`;
+
+      // Build cart items
+      container.innerHTML = Cart.items.map(item => `
+        <div class="bg-white shadow border border-gray-200 rounded-lg p-4 flex justify-between items-center">
+          <div>
+            <h3 class="font-semibold text-gray-800">${item.name}</h3>
+            <p class="text-sm text-gray-600 mt-1">$${(item.priceCents / 100).toFixed(2)} each</p>
+          </div>
+
+          <div class="flex items-center gap-3">
+            <button class="bg-gray-200 px-2 rounded text-lg" onclick="Cart.updateQty('${item.id}', ${item.qty - 1})">−</button>
+            <span class="font-medium">${item.qty}</span>
+            <button class="bg-gray-200 px-2 rounded text-lg" onclick="Cart.updateQty('${item.id}', ${item.qty + 1})">+</button>
+            <button class="text-red-500 hover:text-red-700 ml-3" onclick="Cart.removeItem('${item.id}')">🗑️</button>
+          </div>
+        </div>
+      `).join('');
     }
 
-    document.addEventListener('DOMContentLoaded', () => {
-      draw();
+    function goToCheckout() {
+      window.location.href = 'customer_checkout.html';
+    }
 
-      document.getElementById('clearCart').addEventListener('click', () => {
-        Cart.clearCart();
-        draw();                                
-        Cart.updateCartCount('cartCount');    
-        Cart.showToast('Cart cleared 🗑️');
-      });
-    });
+    document.addEventListener('DOMContentLoaded', renderCart);
   </script>
 </body>
 </html>
-
