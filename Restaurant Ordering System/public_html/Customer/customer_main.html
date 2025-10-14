@@ -59,7 +59,6 @@
   </footer>
 
   <!-- JS -->
-  <script src="../js/cart.js"></script>
   <script>
     async function loadFeaturedItems() {
       const featuredContainer = document.getElementById('featuredItems');
@@ -114,5 +113,61 @@
 
     document.addEventListener('DOMContentLoaded', loadFeaturedItems);
   </script>
+
+<script>
+  // 🛒 Simple Cart System (no external file needed)
+  const Cart = {
+    items: JSON.parse(localStorage.getItem('cartItems')) || [],
+
+    save() {
+      localStorage.setItem('cartItems', JSON.stringify(this.items));
+    },
+
+    addItem({ id, name, priceCents, qty }) {
+      const existing = this.items.find(i => i.id === id);
+      if (existing) {
+        existing.qty += qty;
+      } else {
+        this.items.push({ id, name, priceCents, qty });
+      }
+      this.save();
+      this.showToast(`${name} added to cart ✅`);
+      console.log("Cart now:", this.items);
+    },
+
+    showToast(message) {
+      const toast = document.createElement('div');
+      toast.className = 'fixed bottom-6 right-6 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg z-50 animate-fade-in';
+      toast.textContent = message;
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 2500);
+    },
+
+    clear() {
+      this.items = [];
+      this.save();
+    },
+
+    getTotalCount() {
+      return this.items.reduce((sum, item) => sum + item.qty, 0);
+    },
+
+    getTotalPrice() {
+      return this.items.reduce((sum, item) => sum + item.priceCents * item.qty, 0) / 100;
+    }
+  };
+
+  // 🧩 Hook up Add buttons
+  document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('[data-add-to-cart]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const { id, name, price } = btn.dataset;
+        const priceCents = Math.round(parseFloat(price) * 100);
+        Cart.addItem({ id, name, priceCents, qty: 1 });
+      });
+    });
+  });
+</script>
+
 </body>
 </html>
