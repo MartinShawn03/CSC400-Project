@@ -158,7 +158,131 @@ if (req.method === 'POST' && reqPath === '/Employee/register') {
   return;
 }
 
+// ✅ ADMIN: GET all menu items
+if (req.method === 'GET' && reqPath === '/Employee/menu') {
+  const cookie = req.headers.cookie || '';
+  const match = cookie.match(/session=([a-f0-9]+)/);
+  const token = match ? match[1] : null;
+  const session = token ? sessions[token] : null;
 
+  // Must be Admin
+  if (!session || String(session.role).toLowerCase() !== 'admin') {
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ success: false, message: 'Unauthorized: Admins only' }));
+  }
+
+  connection_pool.query('SELECT * FROM Menu', (err, rows) => {
+    if (err) {
+      console.error('DB Error:', err);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: false, message: 'Database error' }));
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, items: rows }));
+  });
+  return;
+}
+
+// ✅ ADMIN: Add new menu item
+if (req.method === 'POST' && reqPath === '/Employee/menu') {
+  const cookie = req.headers.cookie || '';
+  const match = cookie.match(/session=([a-f0-9]+)/);
+  const token = match ? match[1] : null;
+  const session = token ? sessions[token] : null;
+
+  if (!session || String(session.role).toLowerCase() !== 'admin') {
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ success: false, message: 'Unauthorized: Admins only' }));
+  }
+
+  let body = '';
+  req.on('data', chunk => body += chunk);
+  req.on('end', () => {
+    try {
+      const { item_name, description, price, category } = JSON.parse(body);
+      if (!item_name || !price) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: false, message: 'Missing fields' }));
+      }
+
+      const sql = 'INSERT INTO Menu (item_name, description, price, category) VALUES (?, ?, ?, ?)';
+      connection_pool.query(sql, [item_name, description, price, category], (err) => {
+        if (err) {
+          console.error('Insert Error:', err);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ success: false, message: 'Database error' }));
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true }));
+      });
+    } catch {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, message: 'Invalid request format' }));
+    }
+  });
+  return;
+}
+
+// ✅ ADMIN: Delete menu item
+if (req.method === 'DELETE' && reqPath.startsWith('/Employee/menu/')) {
+  const cookie = req.headers.cookie || '';
+  const match = cookie.match(/session=([a-f0-9]+)/);
+  const token = match ? match[1] : null;
+  const session = token ? sessions[token] : null;
+
+  if (!session || String(session.role).toLowerCase() !== 'admin') {
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ success: false, message: 'Unauthorized: Admins only' }));
+  }
+
+  const itemId = reqPath.split('/').pop();
+  connection_pool.query('DELETE FROM Menu WHERE item_id = ?', [itemId], (err) => {
+    if (err) {
+      console.error('Delete Error:', err);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: false, message: 'Database error' }));
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true }));
+  });
+  return;
+}
+
+// ✅ ADMIN: Toggle menu item availability (PUT /Employee/menu/:id)
+if (req.method === 'PUT' && reqPath.startsWith('/Employee/menu/')) {
+  const cookie = req.headers.cookie || '';
+  const match = cookie.match(/session=([a-f0-9]+)/);
+  const token = match ? match[1] : null;
+  const session = token ? sessions[token] : null;
+
+  if (!session || String(session.role).toLowerCase() !== 'admin') {
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ success: false, message: 'Unauthorized: Admins only' }));
+  }
+
+  const itemId = reqPath.split('/').pop();
+  let body = '';
+  req.on('data', chunk => body += chunk);
+  req.on('end', () => {
+    try {
+      const { available } = JSON.parse(body);
+      const sql = 'UPDATE Menu SET available = ? WHERE item_id = ?';
+      connection_pool.query(sql, [available, itemId], (err) => {
+        if (err) {
+          console.error('Update Error:', err);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ success: false, message: 'Database error' }));
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true }));
+      });
+    } catch {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, message: 'Invalid JSON format' }));
+    }
+  });
+  return;
+}
 
   //  Customer registration and login
   if (req.method === 'POST' && req.url === '/api/register') {
