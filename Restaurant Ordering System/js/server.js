@@ -390,6 +390,22 @@ if (req.method === 'GET' && req.url === '/api/orders/pending') {
   return;
 }
 
+// ✅ Public: Fetch available menu items (for customers & employees)
+if (req.method === 'GET' && req.url === '/api/menu') {
+  const sql = 'SELECT * FROM Menu WHERE available = 1 OR available IS NULL';
+  connection_pool.query(sql, (err, rows) => {
+    if (err) {
+      console.error('DB Error:', err);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: false, message: 'Database error' }));
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, items: rows }));
+  });
+  return;
+}
+
+
 
   //  Static file handler
   const filePath = path.join(baseDir, 'public_html', reqPath);
