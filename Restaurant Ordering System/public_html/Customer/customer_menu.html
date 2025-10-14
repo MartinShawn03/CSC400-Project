@@ -13,7 +13,6 @@
   <header class="bg-white border-b border-gray-200">
     <div class="max-w-6xl mx-auto flex justify-between items-center p-4">
       <div class="flex items-center gap-3">
-        <!-- Mobile Back Button -->
         <button onclick="goBackOrHome()" 
                 class="sm:hidden text-gray-600 hover:text-gray-800 text-sm bg-gray-100 px-3 py-1 rounded-md border border-gray-200">
           ← Back
@@ -21,7 +20,6 @@
         <h1 class="text-xl sm:text-2xl font-semibold">Our Menu</h1>
       </div>
 
-      <!-- Desktop Navigation -->
       <nav class="hidden sm:flex space-x-6 text-sm">
         <a href="customer_main.html" class="hover:text-blue-600 transition">Home</a>
         <a href="customer_cart.html" class="hover:text-blue-600 transition">Cart</a>
@@ -34,7 +32,6 @@
   <main class="flex-grow max-w-6xl mx-auto px-4 py-8">
     <h2 class="text-lg sm:text-xl font-semibold mb-6 text-center">Browse and Add Items to Your Cart</h2>
 
-    <!-- Checkout Button (mobile top shortcut) -->
     <div class="sm:hidden text-center mb-5">
       <a href="customer_checkout.html"
          class="inline-block bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 transition">
@@ -44,11 +41,9 @@
 
     <!-- Menu Grid -->
     <section id="menuGrid" class="grid gap-4 sm:gap-6 grid-cols-2 sm:grid-cols-3 md:grid-cols-4">
-      <!-- Menu items will load here dynamically -->
       <p class="col-span-full text-center text-gray-500">Loading menu items...</p>
     </section>
 
-    <!-- Checkout Button (desktop bottom) -->
     <div class="hidden sm:flex justify-end mt-8">
       <a href="customer_checkout.html"
          class="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 transition">
@@ -57,18 +52,14 @@
     </div>
   </main>
 
-  <!-- Footer -->
   <footer class="bg-white border-t border-gray-200 mt-10">
     <div class="max-w-6xl mx-auto p-4 text-center text-xs text-gray-500">
       &copy; 2025 Self Service Ordering. All rights reserved.
     </div>
   </footer>
 
-
-  
-   <!-- JS -->
+  <!-- JS -->
   <script src="../js/cart.js"></script>
-
   <script>
     function goBackOrHome() {
       if (document.referrer && document.referrer !== window.location.href) {
@@ -77,56 +68,57 @@
         window.location.href = 'customer_main.html';
       }
     }
-async function loadMenu() {
-  try {
-    const response = await fetch('/Customer/menu/');
-    const data = await response.json();
-    const menuList = document.getElementById('menuList');
-    menuList.innerHTML = '';
 
-    if (data.success && data.items.length > 0) {
-      data.items.forEach(item => {
-        const card = document.createElement('div');
-        card.className = "bg-white shadow rounded-lg p-4 flex flex-col justify-between";
-        card.innerHTML = `
-          <div>
-            <h3 class="text-lg font-bold text-gray-800">${item.item_name}</h3>
-            <p class="text-sm text-gray-600 mt-1">${item.description || ''}</p>
-            <p class="font-semibold mt-2 text-green-700">$${parseFloat(item.price).toFixed(2)}</p>
+    async function loadMenu() {
+      const menuGrid = document.getElementById('menuGrid');
+      menuGrid.innerHTML = '<p class="col-span-full text-center text-gray-500">Loading menu items...</p>';
+
+      try {
+        const response = await fetch('/api/menu');  // ✅ Corrected endpoint
+        const data = await response.json();
+
+        if (!data.success || !data.items.length) {
+          menuGrid.innerHTML = '<p class="col-span-full text-center text-gray-500">No items available right now.</p>';
+          return;
+        }
+
+        menuGrid.innerHTML = data.items.map(item => `
+          <div class="bg-white shadow rounded-lg overflow-hidden flex flex-col border border-gray-200">
+            <img src="https://via.placeholder.com/300x200" alt="${item.item_name}" class="w-full h-36 object-cover">
+            <div class="p-4 flex flex-col flex-grow">
+              <h3 class="font-medium text-gray-900">${item.item_name}</h3>
+              <p class="text-xs text-gray-600 flex-grow">${item.description || ''}</p>
+              <div class="flex justify-between items-center mt-2">
+                <span class="font-semibold">$${parseFloat(item.price).toFixed(2)}</span>
+                <button
+                  class="bg-blue-600 text-white px-3 py-1 rounded-md text-sm hover:bg-blue-700 transition"
+                  data-add-to-cart
+                  data-id="${item.item_id}"
+                  data-name="${item.item_name}"
+                  data-price="${item.price}">
+                  Add
+                </button>
+              </div>
+            </div>
           </div>
-          <p class="text-xs text-gray-400 mt-2">${item.category || ''}</p>
-          <button 
-            class="mt-3 bg-green-600 hover:bg-green-700 text-white py-1 px-3 rounded transition"
-            data-add-to-cart
-            data-id="${item.item_id}"
-            data-name="${item.item_name}"
-            data-price="${item.price}">
-            Add to Cart
-          </button>
-        `;
-        menuList.appendChild(card);
-      });
-    } else {
-      menuList.innerHTML = '<p class="text-gray-500">No menu items available right now.</p>';
-    }
-  } catch (err) {
-    console.error('Failed to load menu:', err);
-  }
-}
-document.addEventListener('DOMContentLoaded', loadMenu);
+        `).join('');
 
- 
-    document.addEventListener('DOMContentLoaded', () => {
-      document.querySelectorAll('[data-add-to-cart]').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const { id, name, price } = btn.dataset;
-          const priceCents = Math.round(parseFloat(price) * 100);
-          Cart.addItem({ id, name, priceCents, qty: 1 });
-          Cart.showToast(`${name} added to cart`);
+        // Enable Add to Cart buttons
+        document.querySelectorAll('[data-add-to-cart]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const { id, name, price } = btn.dataset;
+            const priceCents = Math.round(parseFloat(price) * 100);
+            Cart.addItem({ id, name, priceCents, qty: 1 });
+            Cart.showToast(`${name} added to cart`);
+          });
         });
-      });
-    });
-  </script>
+      } catch (err) {
+        console.error('Failed to load menu:', err);
+        menuGrid.innerHTML = '<p class="col-span-full text-center text-red-500">Error loading menu.</p>';
+      }
+    }
 
+    document.addEventListener('DOMContentLoaded', loadMenu);
+  </script>
 </body>
 </html>
