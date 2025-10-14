@@ -413,7 +413,6 @@ if (req.method === 'GET' && req.url === '/api/menu') {
 }
 
 
-
   //  Static file handler
   const filePath = path.join(baseDir, 'public_html', reqPath);
   const ext = path.extname(filePath).toLowerCase();
