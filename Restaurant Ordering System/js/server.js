@@ -114,6 +114,52 @@ const server = http.createServer((req, res) => {
     }
   }
 
+// ADMIN: Register New Employee
+if (req.method === 'POST' && reqPath === '/Employee/register') {
+  const cookie = req.headers.cookie || '';
+  const match = cookie.match(/session=([a-f0-9]+)/);
+  const token = match ? match[1] : null;
+  const session = token ? sessions[token] : null;
+
+  // Only allow if logged in AND role is Admin
+  if (!session || String(session.role).toLowerCase() !== 'admin') {
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ success: false, message: 'Unauthorized: Admins only' }));
+  }
+
+  let body = '';
+  req.on('data', chunk => body += chunk);
+  req.on('end', () => {
+    try {
+      const { name, username, password, role, email, phone } = JSON.parse(body);
+
+      if (!name || !username || !password) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: false, message: 'Missing required fields' }));
+      }
+
+      const sql = 'INSERT INTO Employees (name, username, password, role, email, phone) VALUES (?, ?, ?, ?, ?, ?)';
+      connection_pool.query(sql, [name, username, password, role || 'Employee', email || null, phone || null], (err) => {
+        if (err) {
+          console.error('DB Insert Error:', err);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ success: false, message: 'Database error' }));
+        }
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, message: 'Employee added successfully!' }));
+      });
+    } catch (e) {
+      console.error('JSON Parse Error:', e);
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, message: 'Invalid JSON format' }));
+    }
+  });
+  return;
+}
+
+
+
   //  Customer registration and login
   if (req.method === 'POST' && req.url === '/api/register') {
     let body = '';
