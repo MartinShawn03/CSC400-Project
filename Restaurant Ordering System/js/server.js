@@ -158,7 +158,7 @@ if (req.method === 'POST' && reqPath === '/Employee/register') {
   return;
 }
 
-// ✅ ADMIN: GET all menu items
+//  ADMIN: GET all menu items
 if (req.method === 'GET' && reqPath === '/Employee/menu') {
   const cookie = req.headers.cookie || '';
   const match = cookie.match(/session=([a-f0-9]+)/);
@@ -183,7 +183,7 @@ if (req.method === 'GET' && reqPath === '/Employee/menu') {
   return;
 }
 
-// ✅ ADMIN: Add new menu item
+//  ADMIN: Add new menu item
 if (req.method === 'POST' && reqPath === '/Employee/menu') {
   const cookie = req.headers.cookie || '';
   const match = cookie.match(/session=([a-f0-9]+)/);
@@ -223,7 +223,7 @@ if (req.method === 'POST' && reqPath === '/Employee/menu') {
   return;
 }
 
-// ✅ ADMIN: Delete menu item
+//  ADMIN: Delete menu item
 if (req.method === 'DELETE' && reqPath.startsWith('/Employee/menu/')) {
   const cookie = req.headers.cookie || '';
   const match = cookie.match(/session=([a-f0-9]+)/);
@@ -248,7 +248,7 @@ if (req.method === 'DELETE' && reqPath.startsWith('/Employee/menu/')) {
   return;
 }
 
-// ✅ ADMIN: Toggle menu item availability (PUT /Employee/menu/:id)
+// ADMIN: Toggle menu item availability (PUT /Employee/menu/:id)
 if (req.method === 'PUT' && reqPath.startsWith('/Employee/menu/')) {
   const cookie = req.headers.cookie || '';
   const match = cookie.match(/session=([a-f0-9]+)/);
@@ -305,6 +305,34 @@ if (req.method === 'PUT' && reqPath.startsWith('/Employee/menu/')) {
     });
     return;
   }
+
+
+// CUSTOMER: Get visible (available) menu items
+if (req.method === 'GET' && reqPath === '/Customer/menu/') {
+  connection_pool.query('SELECT * FROM Menu WHERE available = 1', (err, rows) => {
+    if (err) {
+      console.error('Customer Menu DB Error:', err);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: false, message: 'Database error' }));
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, items: rows }));
+  });
+  return;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
 
   if (req.method === 'POST' && req.url === '/api/login') {
     let body = '';
