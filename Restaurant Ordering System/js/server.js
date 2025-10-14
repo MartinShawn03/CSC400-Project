@@ -332,6 +332,65 @@ if (req.method === 'PUT' && reqPath.startsWith('/Employee/menu/')) {
     return;
   }
 
+  // ✅ EMPLOYEE: Create Order (manual entry)
+if (req.method === 'POST' && req.url === '/api/employee/createOrder') {
+  let body = '';
+  req.on('data', chunk => body += chunk);
+  req.on('end', () => {
+    try {
+      const { customer_id = null, item_id, quantity } = JSON.parse(body);
+
+      if (!item_id || !quantity) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: false, message: 'Missing fields' }));
+      }
+
+      const sql = `
+        INSERT INTO Orders (customer_id, item_id, quanity, status)
+        VALUES (?, ?, ?, 'Pending')
+      `;
+
+      connection_pool.query(sql, [customer_id, item_id, quantity], (err) => {
+        if (err) {
+          console.error('DB Insert Error:', err);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ success: false, message: 'Database error' }));
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, message: 'Order created successfully' }));
+      });
+
+    } catch (e) {
+      console.error('JSON Parse Error:', e);
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, message: 'Invalid JSON' }));
+    }
+  });
+  return;
+}
+
+// ✅ EMPLOYEE: Fetch all pending orders
+if (req.method === 'GET' && req.url === '/api/orders/pending') {
+  const sql = `
+    SELECT order_id, customer_id, item_id, quanity AS quantity, status, order_time
+    FROM Orders
+    WHERE status = 'Pending'
+    ORDER BY order_time DESC
+  `;
+  connection_pool.query(sql, (err, rows) => {
+    if (err) {
+      console.error('DB Fetch Error:', err);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: false, message: 'Database error' }));
+    }
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, orders: rows }));
+  });
+  return;
+}
+
+
   //  Static file handler
   const filePath = path.join(baseDir, 'public_html', reqPath);
   const ext = path.extname(filePath).toLowerCase();
