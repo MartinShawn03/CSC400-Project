@@ -307,27 +307,6 @@ if (req.method === 'PUT' && reqPath.startsWith('/Employee/menu/')) {
   }
 
 
-// CUSTOMER: Get visible (available) menu items
-if (req.method === 'GET' && reqPath === '/Customer/menu/') {
-  connection_pool.query('SELECT * FROM Menu WHERE available = 1', (err, rows) => {
-    if (err) {
-      console.error('Customer Menu DB Error:', err);
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ success: false, message: 'Database error' }));
-    }
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ success: true, items: rows }));
-  });
-  return;
-}
-
-
-
-
-
-
-
-
 
 
 
