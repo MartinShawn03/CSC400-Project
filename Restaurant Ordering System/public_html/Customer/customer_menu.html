@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Self Service Ordering</title>
+  <title>Our Menu - Self Service Ordering</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 
@@ -59,7 +59,6 @@
   </footer>
 
   <!-- JS -->
-  <script src="../js/cart.js"></script>
   <script>
     function goBackOrHome() {
       if (document.referrer && document.referrer !== window.location.href) {
@@ -69,12 +68,13 @@
       }
     }
 
+    // ✅ Fetch and display menu items dynamically
     async function loadMenu() {
       const menuGrid = document.getElementById('menuGrid');
       menuGrid.innerHTML = '<p class="col-span-full text-center text-gray-500">Loading menu items...</p>';
 
       try {
-        const response = await fetch('/api/menu');  // ✅ Corrected endpoint
+        const response = await fetch('/api/menu');  // Fetch from server
         const data = await response.json();
 
         if (!data.success || !data.items.length) {
@@ -84,7 +84,7 @@
 
         menuGrid.innerHTML = data.items.map(item => `
           <div class="bg-white shadow rounded-lg overflow-hidden flex flex-col border border-gray-200">
-            <img src="https://via.placeholder.com/300x200" alt="${item.item_name}" class="w-full h-36 object-cover">
+            <img src="https://picsum.photos/300/200?random=${item.item_id}" alt="${item.item_name}" class="w-full h-36 object-cover">
             <div class="p-4 flex flex-col flex-grow">
               <h3 class="font-medium text-gray-900">${item.item_name}</h3>
               <p class="text-xs text-gray-600 flex-grow">${item.description || ''}</p>
@@ -109,7 +109,7 @@
             const { id, name, price } = btn.dataset;
             const priceCents = Math.round(parseFloat(price) * 100);
             Cart.addItem({ id, name, priceCents, qty: 1 });
-            Cart.showToast(`${name} added to cart`);
+            Cart.showToast(`${name} added to cart ✅`);
           });
         });
       } catch (err) {
@@ -119,6 +119,50 @@
     }
 
     document.addEventListener('DOMContentLoaded', loadMenu);
+  </script>
+
+  <!-- 🛒 Cart system -->
+  <script>
+    const Cart = {
+      items: JSON.parse(localStorage.getItem('cartItems')) || [],
+
+      save() {
+        localStorage.setItem('cartItems', JSON.stringify(this.items));
+      },
+
+      addItem({ id, name, priceCents, qty }) {
+        const existing = this.items.find(i => i.id === id);
+        if (existing) {
+          existing.qty += qty;
+        } else {
+          this.items.push({ id, name, priceCents, qty });
+        }
+        this.save();
+        this.showToast(`${name} added to cart ✅`);
+        console.log("Cart now:", this.items);
+      },
+
+      showToast(message) {
+        const toast = document.createElement('div');
+        toast.className = 'fixed bottom-6 right-6 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg z-50';
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 2500);
+      },
+
+      clear() {
+        this.items = [];
+        this.save();
+      },
+
+      getTotalCount() {
+        return this.items.reduce((sum, item) => sum + item.qty, 0);
+      },
+
+      getTotalPrice() {
+        return this.items.reduce((sum, item) => sum + item.priceCents * item.qty, 0) / 100;
+      }
+    };
   </script>
 </body>
 </html>
