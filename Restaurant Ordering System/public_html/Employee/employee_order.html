@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Employee Orders - Self Service Ordering</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gray-50 min-h-screen flex flex-col font-sans">
+
+  <!-- Header -->
+  <header class="bg-white border-b border-gray-200 shadow-sm p-4 flex justify-between items-center">
+    <div class="flex items-center gap-2">
+      <!-- Mobile Back Button -->
+      <button onclick="history.back()"
+              class="sm:hidden text-gray-700 bg-gray-100 px-3 py-1 rounded border border-gray-300 hover:bg-gray-200 transition">
+        ← Back
+      </button>
+      <h1 class="text-lg sm:text-2xl font-semibold text-gray-800">Employee Dashboard</h1>
+    </div>
+
+    <!-- Nav Buttons -->
+    <div class="flex gap-2">
+      <a href="employee_main.html"
+         class="bg-gray-100 text-gray-800 px-3 py-1 rounded border border-gray-300 hover:bg-gray-200 transition text-sm">
+         Home
+      </a>
+      <a href="employee_menu.html"
+         class="bg-gray-100 text-gray-800 px-3 py-1 rounded border border-gray-300 hover:bg-gray-200 transition text-sm">
+         Menu
+      </a>
+      <a href="employee_login.html"
+         class="bg-blue-600 text-white px-3 py-1 rounded shadow hover:bg-blue-700 transition text-sm">
+         Logout
+      </a>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="flex-grow p-6 max-w-7xl mx-auto w-full">
+    
+    <!-- Pending Orders Section -->
+    <section class="mt-8">
+      <h2 class="text-2xl sm:text-3xl font-bold mb-4 text-gray-800 text-center sm:text-left">
+        Pending Customer Orders
+      </h2>
+
+      <div id="ordersGrid" class="grid gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+        <!-- Example Orders (You can later replace these with dynamic data) -->
+        <div class="bg-white shadow rounded-lg overflow-hidden flex flex-col border border-gray-200">
+          <div class="p-4 flex flex-col flex-grow">
+            <p class="text-gray-700 text-sm flex-grow">Order #1 - Customer: Sean Paul - Total: $25.00</p>
+            <button class="bg-green-600 text-white px-3 py-1 rounded mt-2 hover:bg-green-700 transition">Confirm Order</button>
+          </div>
+        </div>
+        <div class="bg-white shadow rounded-lg overflow-hidden flex flex-col border border-gray-200">
+          <div class="p-4 flex flex-col flex-grow">
+            <p class="text-gray-700 text-sm flex-grow">Order #2 - Customer: Joe Lee - Total: $15.00</p>
+            <button class="bg-green-600 text-white px-3 py-1 rounded mt-2 hover:bg-green-700 transition">Confirm Order</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Optional Toast Notification -->
+    <div id="toast" class="hidden fixed bottom-6 right-6 z-50"></div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-white border-t border-gray-200 text-center py-3 text-sm text-gray-600">
+    &copy; 2025 Self Service Ordering | Employee Portal
+  </footer>
+
+    <script>
+    function showToast(message, type = "success") {
+      const toast = document.getElementById("toast");
+      toast.innerHTML = `
+        <div class="bg-green-600 text-white px-4 py-2 rounded-lg shadow">${message}</div>
+      `;
+      toast.classList.remove("hidden");
+      setTimeout(() => toast.classList.add("hidden"), 2500);
+    }
+
+    async function loadOrders() {
+      try {
+        const res = await fetch('/api/orders/pending');
+        const data = await res.json();
+
+        const grid = document.getElementById('ordersGrid');
+        grid.innerHTML = '';
+
+        if (!data.success || !data.orders.length) {
+          grid.innerHTML = `<p class="text-gray-500 text-center col-span-full">No pending orders.</p>`;
+          return;
+        }
+
+        data.orders.forEach(o => {
+          const card = document.createElement('div');
+          card.className = "bg-white shadow rounded-lg overflow-hidden flex flex-col border border-gray-200";
+          card.innerHTML = `
+            <div class="p-4 flex flex-col flex-grow">
+              <p class="text-gray-700 text-sm flex-grow">
+                Order #${o.order_id} - Customer ID: ${o.customer_id ?? "—"} - Item ID: ${o.item_id} - Qty: ${o.quantity}
+              </p>
+              <button class="bg-green-600 text-white px-3 py-1 rounded mt-2 hover:bg-green-700 transition">Confirm Order</button>
+            </div>`;
+          card.querySelector('button').addEventListener('click', () => {
+            showToast('✅ Order confirmed (UI only)');
+          });
+          grid.appendChild(card);
+        });
+      } catch {
+        showToast('Error loading orders', 'error');
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', loadOrders);
+  </script>
+</body>
+</html>
