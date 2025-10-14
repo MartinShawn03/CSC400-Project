@@ -12,15 +12,9 @@
   <header class="bg-white border-b border-gray-200">
     <div class="max-w-6xl mx-auto flex justify-between items-center p-4">
       <div class="flex items-center gap-3">
-        <!-- Mobile Back Button -->
-        <button onclick="history.back()" 
-                class="hidden text-gray-600 hover:text-gray-800 text-sm bg-gray-100 px-3 py-1 rounded-md border border-gray-200 sm:hidden">
-          ← Back
-        </button>
         <h1 class="text-xl sm:text-2xl font-semibold">Welcome</h1>
       </div>
 
-      <!-- ✅ Login Button -->
       <a href="/Customer/customer_login.html"
          class="bg-blue-600 text-white px-4 py-2 rounded-md text-sm shadow hover:bg-blue-700 transition">
         Login
@@ -28,7 +22,7 @@
     </div>
   </header>
 
-  <!-- Hero / Welcome Banner -->
+  <!-- Hero -->
   <section class="relative w-full h-64 sm:h-80 overflow-hidden">
     <img src="https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1200&q=80"
          alt="Delicious food background"
@@ -42,8 +36,8 @@
     </div>
   </section>
 
-  <!-- Main content / call to action -->
-  <main class="flex-grow px-4 sm:px-6 py-8 max-w-4xl mx-auto">
+  <!-- Main -->
+  <main class="flex-grow px-4 sm:px-6 py-8 max-w-6xl mx-auto">
     <div class="text-center mb-8">
       <a href="/Customer/customer_menu.html"
          class="inline-block bg-blue-600 text-white px-6 py-3 rounded-md shadow-lg hover:bg-blue-700 transition">
@@ -51,51 +45,9 @@
       </a>
     </div>
 
-    <!-- Featured / Popular items -->
-    <section class="grid gap-4 sm:gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-      <!-- Example Card: Latte -->
-      <div class="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm flex flex-col">
-        <img src="https://images.unsplash.com/photo-1511920170033-f8396924c348?auto=format&fit=crop&w=600&q=80"
-             alt="Latte"
-             class="w-full h-32 sm:h-40 object-cover">
-        <div class="p-3 flex flex-col flex-grow">
-          <h3 class="font-medium text-gray-900">Latte</h3>
-          <p class="text-xs text-gray-600 flex-grow my-1">Creamy espresso with steamed milk.</p>
-          <div class="flex justify-between items-center mt-2">
-            <span class="font-semibold text-gray-800">$9.99</span>
-            <button
-              class="bg-blue-600 text-white px-3 py-1 rounded-md text-sm hover:bg-blue-700 transition"
-              data-add-to-cart
-              data-id="latte"
-              data-name="Latte"
-              data-price="9.99">
-              Add
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Example Card: Cappuccino -->
-      <div class="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm flex flex-col">
-        <img src="https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&w=600&q=80"
-             alt="Cappuccino"
-             class="w-full h-32 sm:h-40 object-cover">
-        <div class="p-3 flex flex-col flex-grow">
-          <h3 class="font-medium text-gray-900">Cappuccino</h3>
-          <p class="text-xs text-gray-600 flex-grow my-1">Espresso with foamed milk and cocoa.</p>
-          <div class="flex justify-between items-center mt-2">
-            <span class="font-semibold text-gray-800">$19.50</span>
-            <button
-              class="bg-blue-600 text-white px-3 py-1 rounded-md text-sm hover:bg-blue-700 transition"
-              data-add-to-cart
-              data-id="cappuccino"
-              data-name="Cappuccino"
-              data-price="19.50">
-              Add
-            </button>
-          </div>
-        </div>
-      </div>
+    <!-- Featured Items (dynamic) -->
+    <section id="featuredItems" class="grid gap-4 sm:gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+      <p class="col-span-full text-center text-gray-500">Loading featured items...</p>
     </section>
   </main>
 
@@ -106,26 +58,61 @@
     </div>
   </footer>
 
-
-  <!-- Shared cart logic -->
-  <script src="js/cart.js"></script>
+  <!-- JS -->
+  <script src="../js/cart.js"></script>
   <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      // Always sync header count
-      Cart.updateCartCount('cartCount');
+    async function loadFeaturedItems() {
+      const featuredContainer = document.getElementById('featuredItems');
+      featuredContainer.innerHTML = '<p class="col-span-full text-center text-gray-500">Loading featured items...</p>';
 
-      // Wire up add-to-cart buttons
-      document.querySelectorAll('[data-add-to-cart]').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const { id, name, price } = btn.dataset;   <!-- FIX: moved console.log after destructuring -->
-          const priceCents = Math.round(parseFloat(price) * 100);
-          Cart.addItem({ id, name, priceCents, qty: 1 });
-          Cart.updateCartCount('cartCount');
-          Cart.showToast(`${name} added to cart ✅`);
+      try {
+        const res = await fetch('/api/menu');
+        const data = await res.json();
+
+        if (!data.success || !data.items.length) {
+          featuredContainer.innerHTML = '<p class="col-span-full text-center text-gray-500">No featured items yet.</p>';
+          return;
+        }
+
+        const featured = data.items.slice(0, 4); // show up to 4
+        featuredContainer.innerHTML = featured.map(item => `
+          <div class="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm flex flex-col">
+            <img src="https://via.placeholder.com/400x300" alt="${item.item_name}" class="w-full h-32 sm:h-40 object-cover">
+            <div class="p-3 flex flex-col flex-grow">
+              <h3 class="font-medium text-gray-900">${item.item_name}</h3>
+              <p class="text-xs text-gray-600 flex-grow my-1">${item.description || ''}</p>
+              <div class="flex justify-between items-center mt-2">
+                <span class="font-semibold text-gray-800">$${parseFloat(item.price).toFixed(2)}</span>
+                <button
+                  class="bg-blue-600 text-white px-3 py-1 rounded-md text-sm hover:bg-blue-700 transition"
+                  data-add-to-cart
+                  data-id="${item.item_id}"
+                  data-name="${item.item_name}"
+                  data-price="${item.price}">
+                  Add
+                </button>
+              </div>
+            </div>
+          </div>
+        `).join('');
+
+        // Enable Add to Cart buttons
+        document.querySelectorAll('[data-add-to-cart]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const { id, name, price } = btn.dataset;
+            const priceCents = Math.round(parseFloat(price) * 100);
+            Cart.addItem({ id, name, priceCents, qty: 1 });
+            Cart.showToast(`${name} added to cart ✅`);
+          });
         });
-      });
-    });
+
+      } catch (err) {
+        console.error('Error loading featured items:', err);
+        featuredContainer.innerHTML = '<p class="col-span-full text-center text-red-500">Error loading items.</p>';
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', loadFeaturedItems);
   </script>
 </body>
 </html>
-
