@@ -43,48 +43,9 @@
     </div>
 
     <!-- Menu Grid -->
-    <section class="grid gap-4 sm:gap-6 grid-cols-2 sm:grid-cols-3 md:grid-cols-4">
-      <!-- Latte -->
-      <div class="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm flex flex-col">
-        <img src="https://images.unsplash.com/photo-1511920170033-f8396924c348?auto=format&fit=crop&w=600&q=80"
-             alt="Latte" class="w-full h-36 object-cover">
-        <div class="p-3 flex flex-col flex-grow">
-          <h3 class="font-medium text-gray-900">Latte</h3>
-          <p class="text-xs text-gray-600 flex-grow">Creamy espresso with steamed milk.</p>
-          <div class="flex justify-between items-center mt-2">
-            <span class="font-semibold">$9.99</span>
-            <button
-              class="bg-blue-600 text-white px-3 py-1 rounded-md text-sm hover:bg-blue-700 transition"
-              data-add-to-cart
-              data-id="latte"
-              data-name="Latte"
-              data-price="9.99">
-              Add
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Cappuccino -->
-      <div class="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm flex flex-col">
-        <img src="https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&w=600&q=80"
-             alt="Cappuccino" class="w-full h-36 object-cover">
-        <div class="p-3 flex flex-col flex-grow">
-          <h3 class="font-medium text-gray-900">Cappuccino</h3>
-          <p class="text-xs text-gray-600 flex-grow">Espresso with foamed milk and cocoa.</p>
-          <div class="flex justify-between items-center mt-2">
-            <span class="font-semibold">$19.50</span>
-            <button
-              class="bg-blue-600 text-white px-3 py-1 rounded-md text-sm hover:bg-blue-700 transition"
-              data-add-to-cart
-              data-id="cappuccino"
-              data-name="Cappuccino"
-              data-price="19.50">
-              Add
-            </button>
-          </div>
-        </div>
-      </div>
+    <section id="menuGrid" class="grid gap-4 sm:gap-6 grid-cols-2 sm:grid-cols-3 md:grid-cols-4">
+      <!-- Menu items will load here dynamically -->
+      <p class="col-span-full text-center text-gray-500">Loading menu items...</p>
     </section>
 
     <!-- Checkout Button (desktop bottom) -->
@@ -103,8 +64,11 @@
     </div>
   </footer>
 
-  <!-- JS -->
+
+  
+   <!-- JS -->
   <script src="../js/cart.js"></script>
+
   <script>
     function goBackOrHome() {
       if (document.referrer && document.referrer !== window.location.href) {
@@ -163,6 +127,6 @@ document.addEventListener('DOMContentLoaded', loadMenu);
       });
     });
   </script>
+
 </body>
 </html>
-
