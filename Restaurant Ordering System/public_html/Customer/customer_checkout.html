@@ -6,86 +6,117 @@
   <title>Checkout - Self Service Ordering</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gradient-to-br from-yellow-50 to-orange-100 font-serif">
+
+<body class="bg-gray-50 text-gray-800 font-sans min-h-screen flex flex-col">
 
   <!-- Header -->
-  <header class="bg-white shadow p-4 flex justify-between items-center">
-    <h1 class="text-2xl font-bold text-gray-800">Checkout</h1>
-    <div class="space-x-4">
-      <a href="/Customer/customer_main.html" class="bg-gray-200 text-gray-800 px-3 py-1 rounded hover:bg-gray-300">Home</a>
-      <a href="/Customer/customer_cart.html"
-   class="inline-flex items-center bg-yellow-500 text-white px-4 py-2 rounded-lg shadow hover:bg-yellow-600 transition">
-  🛒 View Cart (<span id="cartCount">0</span>)
-</a>
+  <header class="bg-white border-b border-gray-200">
+    <div class="max-w-6xl mx-auto flex justify-between items-center p-4">
+      <h1 class="text-xl sm:text-2xl font-semibold">Checkout</h1>
+      <a href="customer_cart.html" class="text-sm text-blue-600 hover:underline">← Back to Cart</a>
     </div>
   </header>
 
-
-  <!-- Checkout Form -->
-  <main class="p-6 max-w-2xl mx-auto bg-white shadow rounded-lg mt-6">
-    <h2 class="text-xl font-semibold mb-4">Billing & Payment Information</h2>
-
-    <form class="space-y-4">
-      <!-- Name -->
-      <div>
-        <label class="block text-gray-700 font-medium mb-1">Full Name</label>
-        <input type="text" placeholder="John Cruz" class="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-600">
+  <!-- Main -->
+  <main class="flex-grow max-w-4xl mx-auto p-6 space-y-6">
+    <section id="checkoutContainer" class="bg-white rounded-lg shadow border border-gray-200 p-4 sm:p-6">
+      <h2 class="text-lg font-semibold mb-4">Your Order Summary</h2>
+      <div id="orderList" class="divide-y divide-gray-200">
+        <p class="text-center text-gray-500 py-4">Loading your order...</p>
       </div>
 
-
-      <!-- Email -->
-      <div>
-        <label class="block text-gray-700 font-medium mb-1">Email</label>
-        <input type="email" placeholder="john@example.com" class="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-600">
-      </div>
-
-      <!-- Address -->
-      <div>
-        <label class="block text-gray-700 font-medium mb-1">Address</label>
-        <input type="text" placeholder="123 Main St" class="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-600">
-      </div>
-
-      <!-- Payment Method -->
-      <div>
-        <label class="block text-gray-700 font-medium mb-1">Payment Method</label>
-        <select class="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-600">
-          <option>Credit Card</option>
-          <option>Debit Card</option>
-          <option>PayPal</option>
-          <option>Cash on Delivery</option>
-        </select>
-      </div>
-
-      <!-- Total Amount -->
-      <div class="flex justify-between items-center mt-6">
-        <p class="text-lg font-semibold">Total:</p>
-        <p class="text-lg font-bold" id="checkoutPageTotal">$0.00</p>
-      </div>
-
-
-      <!-- Place Order Button -->
-      <div class="flex justify-end mt-4">
-        <button type="submit" class="bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700">
-          Place Order
+      <div id="summarySection" class="mt-6 text-right hidden">
+        <p class="text-lg font-semibold text-gray-800">Total: <span id="totalPrice">$0.00</span></p>
+        <button id="confirmOrderBtn"
+                class="mt-4 bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700 transition">
+          Confirm Order
         </button>
       </div>
-    </form>
+    </section>
+
+    <section id="confirmationMessage" class="hidden text-center bg-green-50 border border-green-200 text-green-700 p-6 rounded-lg">
+      <h2 class="text-xl font-semibold mb-2">🎉 Order Placed Successfully!</h2>
+      <p>Thank you for your order. It will be processed shortly.</p>
+      <a href="customer_main.html"
+         class="mt-4 inline-block bg-blue-600 text-white px-5 py-2 rounded-md hover:bg-blue-700 transition">
+        Return to Home
+      </a>
+    </section>
   </main>
-<!-- Shared cart logic + checkout glue -->
-<script src="js/cart.js"></script>
-<script>
-  document.addEventListener('DOMContentLoaded', () => {
-    // update cart count in header
-    Cart.updateCartCount('cartCount');
 
-    // get totals
-    const { totalCents } = Cart.totals();
+  <!-- Footer -->
+  <footer class="bg-white border-t border-gray-200 mt-10">
+    <div class="max-w-6xl mx-auto p-4 text-center text-xs text-gray-500">
+      &copy; 2025 Self Service Ordering. All rights reserved.
+    </div>
+  </footer>
 
-    // ✅ update only the bottom total
-    const totalEl = document.getElementById('checkoutPageTotal');
-    if (totalEl) totalEl.textContent = Cart.formatCents(totalCents);
-  });
-</script>
+  <!-- JS -->
+  <script>
+    const Cart = {
+      items: JSON.parse(localStorage.getItem('cartItems')) || [],
+
+      save() {
+        localStorage.setItem('cartItems', JSON.stringify(this.items));
+      },
+
+      clear() {
+        this.items = [];
+        this.save();
+      },
+
+      getTotalPrice() {
+        return this.items.reduce((sum, i) => sum + i.priceCents * i.qty, 0) / 100;
+      }
+    };
+
+    function renderCheckout() {
+      const list = document.getElementById('orderList');
+      const summary = document.getElementById('summarySection');
+      const totalPriceEl = document.getElementById('totalPrice');
+
+      if (Cart.items.length === 0) {
+        list.innerHTML = '<p class="text-center text-gray-500 py-4">Your cart is empty.</p>';
+        summary.classList.add('hidden');
+        return;
+      }
+
+      summary.classList.remove('hidden');
+      totalPriceEl.textContent = `$${Cart.getTotalPrice().toFixed(2)}`;
+
+      list.innerHTML = Cart.items.map(item => `
+        <div class="flex justify-between items-center py-3">
+          <div>
+            <h3 class="font-medium">${item.name}</h3>
+            <p class="text-sm text-gray-600">Qty: ${item.qty}</p>
+          </div>
+          <p class="font-semibold">$${((item.priceCents * item.qty) / 100).toFixed(2)}</p>
+        </div>
+      `).join('');
+    }
+
+    // ✅ Confirm order handler
+    document.addEventListener('DOMContentLoaded', () => {
+      renderCheckout();
+
+      const btn = document.getElementById('confirmOrderBtn');
+      const confirmation = document.getElementById('confirmationMessage');
+      const checkoutContainer = document.getElementById('checkoutContainer');
+
+      btn.addEventListener('click', async () => {
+        try {
+          // (Optional) Send order to backend later
+          // await fetch('/api/submitOrder', { method: 'POST', body: JSON.stringify(Cart.items) });
+
+          Cart.clear();
+          checkoutContainer.classList.add('hidden');
+          confirmation.classList.remove('hidden');
+        } catch (err) {
+          alert('Error submitting order. Please try again.');
+          console.error(err);
+        }
+      });
+    });
+  </script>
 </body>
 </html>
-
