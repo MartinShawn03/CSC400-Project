@@ -19,8 +19,38 @@
 
   <!-- Main -->
   <main class="flex-grow max-w-4xl mx-auto p-6 space-y-6">
+
+    <!-- Customer Details Form -->
+    <form id="checkoutForm" class="bg-white rounded-lg shadow border border-gray-200 p-4 sm:p-6 space-y-4">
+      <h2 class="text-lg font-semibold mb-2">Customer Information</h2>
+
+      <div>
+        <label class="block text-sm font-medium">Full Name</label>
+        <input type="text" id="custName" class="w-full border rounded p-2 mt-1" required />
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium">Email</label>
+        <input type="email" id="custEmail" class="w-full border rounded p-2 mt-1" required />
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium">Phone Number</label>
+        <input type="tel" id="custPhone" class="w-full border rounded p-2 mt-1" placeholder="Optional" />
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium">Payment Method</label>
+        <select id="paymentMethod" class="w-full border rounded p-2 mt-1">
+          <option value="Cash">Cash</option>
+          <option value="Card">Card (via Stripe)</option>
+        </select>
+      </div>
+    </form>
+
+    <!-- Order Summary -->
     <section id="checkoutContainer" class="bg-white rounded-lg shadow border border-gray-200 p-4 sm:p-6">
-      <h2 class="text-lg font-semibold mb-4">Your Order Summary</h2>
+      <h2 class="text-lg font-semibold mb-4">Order Summary</h2>
       <div id="orderList" class="divide-y divide-gray-200">
         <p class="text-center text-gray-500 py-4">Loading your order...</p>
       </div>
@@ -34,6 +64,7 @@
       </div>
     </section>
 
+    <!-- Confirmation Message -->
     <section id="confirmationMessage" class="hidden text-center bg-green-50 border border-green-200 text-green-700 p-6 rounded-lg">
       <h2 class="text-xl font-semibold mb-2">🎉 Order Placed Successfully!</h2>
       <p>Thank you for your order. It will be processed shortly.</p>
@@ -42,6 +73,7 @@
         Return to Home
       </a>
     </section>
+
   </main>
 
   <!-- Footer -->
@@ -56,18 +88,9 @@
     const Cart = {
       items: JSON.parse(localStorage.getItem('cartItems')) || [],
 
-      save() {
-        localStorage.setItem('cartItems', JSON.stringify(this.items));
-      },
-
-      clear() {
-        this.items = [];
-        this.save();
-      },
-
-      getTotalPrice() {
-        return this.items.reduce((sum, i) => sum + i.priceCents * i.qty, 0) / 100;
-      }
+      save() { localStorage.setItem('cartItems', JSON.stringify(this.items)); },
+      clear() { this.items = []; this.save(); },
+      getTotalPrice() { return this.items.reduce((sum, i) => sum + i.priceCents * i.qty, 0) / 100; }
     };
 
     function renderCheckout() {
@@ -95,25 +118,52 @@
       `).join('');
     }
 
-    // ✅ Confirm order handler
     document.addEventListener('DOMContentLoaded', () => {
       renderCheckout();
 
       const btn = document.getElementById('confirmOrderBtn');
       const confirmation = document.getElementById('confirmationMessage');
       const checkoutContainer = document.getElementById('checkoutContainer');
+      const form = document.getElementById('checkoutForm');
 
-      btn.addEventListener('click', async () => {
+      btn.addEventListener('click', async (e) => {
+        e.preventDefault();
+
+        const name = document.getElementById('custName').value.trim();
+        const email = document.getElementById('custEmail').value.trim();
+        const phone = document.getElementById('custPhone').value.trim();
+        const payment = document.getElementById('paymentMethod').value;
+
+        if (!name || !email) {
+          alert('Please fill in all required fields.');
+          return;
+        }
+
+        const orderData = {
+          customer: { name, email, phone, payment },
+          items: Cart.items,
+          total: Cart.getTotalPrice()
+        };
+
         try {
-          // (Optional) Send order to backend later
-          // await fetch('/api/submitOrder', { method: 'POST', body: JSON.stringify(Cart.items) });
+          const res = await fetch('/api/employee/createOrder', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(orderData)
+          });
 
-          Cart.clear();
-          checkoutContainer.classList.add('hidden');
-          confirmation.classList.remove('hidden');
+          const data = await res.json();
+          if (data.success) {
+            Cart.clear();
+            form.classList.add('hidden');
+            checkoutContainer.classList.add('hidden');
+            confirmation.classList.remove('hidden');
+          } else {
+            alert('Failed to place order. Please try again.');
+          }
         } catch (err) {
-          alert('Error submitting order. Please try again.');
           console.error(err);
+          alert('Error connecting to server.');
         }
       });
     });
