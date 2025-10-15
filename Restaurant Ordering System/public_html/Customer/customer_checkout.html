@@ -3,77 +3,66 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Checkout - Self Service Ordering</title>
+  <title>Checkout – Self Service Ordering</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-
 <body class="bg-gray-50 text-gray-800 font-sans min-h-screen flex flex-col">
 
   <!-- Header -->
   <header class="bg-white border-b border-gray-200">
     <div class="max-w-6xl mx-auto flex justify-between items-center p-4">
       <h1 class="text-xl sm:text-2xl font-semibold">Checkout</h1>
-      <a href="customer_cart.html" class="text-sm text-blue-600 hover:underline">← Back to Cart</a>
+      <nav class="hidden sm:flex space-x-6 text-sm">
+        <a href="customer_main.html" class="hover:text-blue-600 transition">Home</a>
+        <a href="customer_cart.html" class="hover:text-blue-600 transition">Cart</a>
+      </nav>
     </div>
   </header>
 
   <!-- Main -->
-  <main class="flex-grow max-w-4xl mx-auto p-6 space-y-6">
-
-    <!-- Customer Details Form -->
-    <form id="checkoutForm" class="bg-white rounded-lg shadow border border-gray-200 p-4 sm:p-6 space-y-4">
-      <h2 class="text-lg font-semibold mb-2">Customer Information</h2>
-
-      <div>
-        <label class="block text-sm font-medium">Full Name</label>
-        <input type="text" id="custName" class="w-full border rounded p-2 mt-1" required />
-      </div>
-
-      <div>
-        <label class="block text-sm font-medium">Email</label>
-        <input type="email" id="custEmail" class="w-full border rounded p-2 mt-1" required />
-      </div>
-
-      <div>
-        <label class="block text-sm font-medium">Phone Number</label>
-        <input type="tel" id="custPhone" class="w-full border rounded p-2 mt-1" placeholder="Optional" />
-      </div>
-
-      <div>
-        <label class="block text-sm font-medium">Payment Method</label>
-        <select id="paymentMethod" class="w-full border rounded p-2 mt-1">
-          <option value="Cash">Cash</option>
-          <option value="Card">Card (via Stripe)</option>
-        </select>
-      </div>
-    </form>
-
+  <main class="flex-grow max-w-4xl mx-auto px-4 py-8">
     <!-- Order Summary -->
-    <section id="checkoutContainer" class="bg-white rounded-lg shadow border border-gray-200 p-4 sm:p-6">
-      <h2 class="text-lg font-semibold mb-4">Order Summary</h2>
-      <div id="orderList" class="divide-y divide-gray-200">
-        <p class="text-center text-gray-500 py-4">Loading your order...</p>
+    <section id="orderSummary" class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+      <h2 class="text-lg font-semibold mb-4">Your Order</h2>
+      <div id="orderItems" class="divide-y divide-gray-100">
+        <p class="text-gray-500 text-center py-4">Loading your cart...</p>
       </div>
-
-      <div id="summarySection" class="mt-6 text-right hidden">
-        <p class="text-lg font-semibold text-gray-800">Total: <span id="totalPrice">$0.00</span></p>
-        <button id="confirmOrderBtn"
-                class="mt-4 bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700 transition">
-          Confirm Order
-        </button>
+      <div class="flex justify-between items-center mt-4 text-lg font-semibold">
+        <span>Total:</span>
+        <span id="orderTotal">$0.00</span>
       </div>
     </section>
 
-    <!-- Confirmation Message -->
-    <section id="confirmationMessage" class="hidden text-center bg-green-50 border border-green-200 text-green-700 p-6 rounded-lg">
-      <h2 class="text-xl font-semibold mb-2">🎉 Order Placed Successfully!</h2>
-      <p>Thank you for your order. It will be processed shortly.</p>
-      <a href="customer_main.html"
-         class="mt-4 inline-block bg-blue-600 text-white px-5 py-2 rounded-md hover:bg-blue-700 transition">
-        Return to Home
-      </a>
+    <!-- Customer Info -->
+    <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+      <h2 class="text-lg font-semibold mb-4">Customer Information</h2>
+      <form id="checkoutForm" class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Full Name</label>
+          <input type="text" id="custName" class="mt-1 w-full border rounded-md p-2" placeholder="John Doe" required>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Email Address</label>
+          <input type="email" id="custEmail" class="mt-1 w-full border rounded-md p-2" placeholder="john@example.com" required>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Phone Number (optional)</label>
+          <input type="tel" id="custPhone" class="mt-1 w-full border rounded-md p-2" placeholder="(555) 123-4567">
+        </div>
+      </form>
     </section>
 
+    <!-- Payment Section -->
+    <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+      <h2 class="text-lg font-semibold mb-4">Payment</h2>
+      <p class="text-sm text-gray-600 mb-4">Payment processing is currently handled securely by Stripe (in progress).</p>
+      <button id="placeOrderBtn"
+        class="w-full bg-blue-600 text-white py-3 rounded-md text-lg font-medium hover:bg-blue-700 transition">
+        Place Order
+      </button>
+    </section>
+
+    <p id="statusMsg" class="text-center text-sm mt-4 text-gray-600"></p>
   </main>
 
   <!-- Footer -->
@@ -83,89 +72,84 @@
     </div>
   </footer>
 
-  <!-- JS -->
+  <!-- 🧠 Inline Cart Logic + Checkout -->
   <script>
     const Cart = {
       items: JSON.parse(localStorage.getItem('cartItems')) || [],
-
-      save() { localStorage.setItem('cartItems', JSON.stringify(this.items)); },
-      clear() { this.items = []; this.save(); },
-      getTotalPrice() { return this.items.reduce((sum, i) => sum + i.priceCents * i.qty, 0) / 100; }
+      getTotal() {
+        return this.items.reduce((sum, i) => sum + i.priceCents * i.qty, 0) / 100;
+      },
+      clear() {
+        this.items = [];
+        localStorage.removeItem('cartItems');
+      },
     };
 
-    function renderCheckout() {
-      const list = document.getElementById('orderList');
-      const summary = document.getElementById('summarySection');
-      const totalPriceEl = document.getElementById('totalPrice');
+    function renderOrder() {
+      const container = document.getElementById('orderItems');
+      const totalEl = document.getElementById('orderTotal');
+      container.innerHTML = '';
 
-      if (Cart.items.length === 0) {
-        list.innerHTML = '<p class="text-center text-gray-500 py-4">Your cart is empty.</p>';
-        summary.classList.add('hidden');
+      if (!Cart.items.length) {
+        container.innerHTML = '<p class="text-gray-500 text-center py-4">Your cart is empty.</p>';
+        totalEl.textContent = '$0.00';
         return;
       }
 
-      summary.classList.remove('hidden');
-      totalPriceEl.textContent = `$${Cart.getTotalPrice().toFixed(2)}`;
+      Cart.items.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'py-3 flex justify-between';
+        div.innerHTML = `
+          <span>${item.name} × ${item.qty}</span>
+          <span>$${(item.priceCents * item.qty / 100).toFixed(2)}</span>
+        `;
+        container.appendChild(div);
+      });
 
-      list.innerHTML = Cart.items.map(item => `
-        <div class="flex justify-between items-center py-3">
-          <div>
-            <h3 class="font-medium">${item.name}</h3>
-            <p class="text-sm text-gray-600">Qty: ${item.qty}</p>
-          </div>
-          <p class="font-semibold">$${((item.priceCents * item.qty) / 100).toFixed(2)}</p>
-        </div>
-      `).join('');
+      totalEl.textContent = '$' + Cart.getTotal().toFixed(2);
     }
 
-    document.addEventListener('DOMContentLoaded', () => {
-      renderCheckout();
+    document.addEventListener('DOMContentLoaded', renderOrder);
 
-      const btn = document.getElementById('confirmOrderBtn');
-      const confirmation = document.getElementById('confirmationMessage');
-      const checkoutContainer = document.getElementById('checkoutContainer');
-      const form = document.getElementById('checkoutForm');
+    document.getElementById('placeOrderBtn').addEventListener('click', async () => {
+      const name = document.getElementById('custName').value.trim();
+      const email = document.getElementById('custEmail').value.trim();
+      const phone = document.getElementById('custPhone').value.trim();
+      const statusMsg = document.getElementById('statusMsg');
 
-      btn.addEventListener('click', async (e) => {
-        e.preventDefault();
+      if (!name || !email || !Cart.items.length) {
+        statusMsg.textContent = '⚠️ Please fill out your details and ensure your cart is not empty.';
+        statusMsg.className = 'text-center text-sm mt-4 text-red-600';
+        return;
+      }
 
-        const name = document.getElementById('custName').value.trim();
-        const email = document.getElementById('custEmail').value.trim();
-        const phone = document.getElementById('custPhone').value.trim();
-        const payment = document.getElementById('paymentMethod').value;
+      const orderData = {
+        customer: { name, email, phone },
+        items: Cart.items.map(i => ({ id: i.id, qty: i.qty })),
+        total: Cart.getTotal()
+      };
 
-        if (!name || !email) {
-          alert('Please fill in all required fields.');
-          return;
+      try {
+        const res = await fetch('/api/employee/createOrder', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(orderData)
+        });
+
+        const data = await res.json();
+        if (data.success) {
+          Cart.clear();
+          statusMsg.textContent = '✅ Order placed successfully! Thank you.';
+          statusMsg.className = 'text-center text-green-600 mt-4';
+          setTimeout(() => window.location.href = 'customer_main.html', 2000);
+        } else {
+          throw new Error(data.message);
         }
-
-        const orderData = {
-          customer: { name, email, phone, payment },
-          items: Cart.items,
-          total: Cart.getTotalPrice()
-        };
-
-        try {
-          const res = await fetch('/api/employee/createOrder', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(orderData)
-          });
-
-          const data = await res.json();
-          if (data.success) {
-            Cart.clear();
-            form.classList.add('hidden');
-            checkoutContainer.classList.add('hidden');
-            confirmation.classList.remove('hidden');
-          } else {
-            alert('Failed to place order. Please try again.');
-          }
-        } catch (err) {
-          console.error(err);
-          alert('Error connecting to server.');
-        }
-      });
+      } catch (err) {
+        statusMsg.textContent = '❌ Error placing order. Please try again.';
+        statusMsg.className = 'text-center text-red-600 mt-4';
+        console.error(err);
+      }
     });
   </script>
 </body>
