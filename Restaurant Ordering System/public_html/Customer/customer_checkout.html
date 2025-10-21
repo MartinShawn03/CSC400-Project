@@ -73,6 +73,7 @@
   </footer>
 
   <!-- 🧠 Inline Cart Logic + Checkout -->
+  <script src="https://js.stripe.com/v3/"></script>
   <script>
     const Cart = {
       items: JSON.parse(localStorage.getItem('cartItems')) || [],
@@ -111,6 +112,11 @@
 
     document.addEventListener('DOMContentLoaded', renderOrder);
 
+    const stripe = Stripe('pk_test_51SFy9pPSluQDYFuOm9N56zrzFTC3P2fogXnjes69IqZdRbctVbHvIVDSKuFAF56JfKpSCTNIJigCoO1ohsmDeMG600w9fLc0ce'); 
+    const elements = stripe.elements();
+    const cardElement = elements.create('card');
+    cardElement.mount('#payment-element');
+
     document.getElementById('placeOrderBtn').addEventListener('click', async () => {
       const name = document.getElementById('custName').value.trim();
       const email = document.getElementById('custEmail').value.trim();
@@ -144,6 +150,52 @@
           setTimeout(() => window.location.href = 'customer_main.html', 2000);
         } else {
           throw new Error(data.message);
+        }
+      } catch (err) {
+        statusMsg.textContent = '❌ Error placing order. Please try again.';
+        statusMsg.className = 'text-center text-red-600 mt-4';
+        console.error(err);
+      }
+    });const orderRes = await fetch('/api/employee/createOrder', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(orderData)
+        });
+
+        const orderDataResp = await orderRes.json();
+        if (!orderDataResp.success) throw new Error(orderDataResp.message);
+
+        
+        const paymentRes = await fetch('/create-payment-intent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderId: orderDataResp.order_id }) 
+        });
+
+        const paymentData = await paymentRes.json();
+        if (!paymentData.success) throw new Error(paymentData.message);
+
+        // Confirm payment with Stripe
+        const { error, paymentIntent } = await stripe.confirmCardPayment(paymentData.clientSecret, {
+          payment_method: { card: cardElement }
+        });
+
+        if (error) {
+          statusMsg.textContent = `❌ Payment failed: ${error.message}`;
+          statusMsg.className = 'text-center text-sm mt-4 text-red-600';
+        } else if (paymentIntent.status === 'succeeded') {
+          // Payment succeeded, update order status or clear cart
+          Cart.clear();
+          statusMsg.textContent = '✅ Order placed successfully! Thank you.';
+          statusMsg.className = 'text-center text-green-600 mt-4';
+          setTimeout(() => window.location.href = 'customer_main.html', 2000);
+
+          // Update order status on server 
+          await fetch('/api/employee/createOrder', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ orderId: orderDataResp.order_id, status: 'Paid' })
+          });
         }
       } catch (err) {
         statusMsg.textContent = '❌ Error placing order. Please try again.';

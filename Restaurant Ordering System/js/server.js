@@ -3,6 +3,8 @@ const fs = require('fs');
 const path = require('path');
 const mysql = require('mysql2');
 const { randomBytes } = require('crypto');
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY); 
+require('dotenv').config();
 
 const baseDir = path.resolve(__dirname, '..');
 
@@ -392,7 +394,8 @@ if (req.method === 'GET' && req.url === '/api/orders/pending') {
     }
 
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ success: true, orders: rows }));
+    res.
+end(JSON.stringify({ success: true, orders: rows }));
   });
   return;
 }
@@ -412,6 +415,53 @@ if (req.method === 'GET' && req.url === '/api/menu') {
   return;
 }
 
+if (req.method === 'POST' && req.url === '/create-payment-intent') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', () => {
+      try {
+        const { orderId } = JSON.parse(body); // Expect orderId from client
+        if (!orderId) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ success: false, message: 'Missing orderId' }));
+        }
+
+        
+       connection_pool.query(
+          'SELECT SUM(m.price * o.quanity) as total FROM Orders o JOIN Menu m ON o.item_id = m.item_id WHERE o.order_id = ? AND o.status = ?',
+          [orderId, 'Pending'],
+          async (err, results) => {
+            if (err || !results.length) {
+              console.error('DB Error:', err);
+              res.writeHead(500, { 'Content-Type': 'application/json' });
+              return res.end(JSON.stringify({ success: false, message: 'Order not found or database error' }));
+            }
+
+            const total = results[0].total || 0;
+            if (total <= 0) {
+              res.writeHead(400, { 'Content-Type': 'application/json' });
+              return res.end(JSON.stringify({ success: false, message: 'Invalid order total' }));
+            }
+
+            const paymentIntent = await stripe.paymentIntents.create({
+              amount: Math.round(total), // Amount in cents
+              currency: 'usd',
+              payment_method_types: ['card'],
+              metadata: { orderId }, // Optional: link payment to order
+            });
+
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: true, clientSecret: paymentIntent.client_secret }));
+          }
+        );
+      } catch (e) {
+        console.error('Error:', e);
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, message: 'Invalid request' }));
+      }
+    });
+    return;
+  }
 
   //  Static file handler
   const filePath = path.join(baseDir, 'public_html', reqPath);
@@ -439,5 +489,7 @@ if (req.method === 'GET' && req.url === '/api/menu') {
   });
 });
 
-server.listen(80, () => console.log(' Server running on port 80'));
-
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
