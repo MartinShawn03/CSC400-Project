@@ -12,6 +12,7 @@
   "license": "ISC",
   "dependencies": {
     "formidable": "^3.5.4",
+    "bcrypt": "^6.0.0",
     "mysql2": "^3.15.1"
   }
 }
