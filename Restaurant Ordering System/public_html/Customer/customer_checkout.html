@@ -111,11 +111,12 @@
     }
 
     document.addEventListener('DOMContentLoaded', renderOrder);
-
-    const stripe = Stripe('pk_test_51SFy9pPSluQDYFuOm9N56zrzFTC3P2fogXnjes69IqZdRbctVbHvIVDSKuFAF56JfKpSCTNIJigCoO1ohsmDeMG600w9fLc0ce'); 
+    renderOrder();
+    const publicKey = await getStripePublicKey();
+    const stripe = Stripe(publicKey);
     const elements = stripe.elements();
     const cardElement = elements.create('card');
-    cardElement.mount('#payment-element');
+    cardElement.mount('#payment-element')
 
     document.getElementById('placeOrderBtn').addEventListener('click', async () => {
       const name = document.getElementById('custName').value.trim();

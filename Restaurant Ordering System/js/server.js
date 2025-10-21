@@ -463,6 +463,12 @@ if (req.method === 'POST' && req.url === '/create-payment-intent') {
     return;
   }
 
+  if (req.method === 'GET' && req.url === '/api/stripe-public-key') {
+  res.writeHead(200, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify({ publicKey: process.env.STRIPE_PUBLISHABLE_KEY }));
+  return;
+}
+
   //  Static file handler
   const filePath = path.join(baseDir, 'public_html', reqPath);
   const ext = path.extname(filePath).toLowerCase();
