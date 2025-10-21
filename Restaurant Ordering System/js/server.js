@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const mysql = require('mysql2');
 const { randomBytes } = require('crypto');
+const bcrypt = require('bcrypt');
 
 const baseDir = path.resolve(__dirname, '..');
 
@@ -50,24 +51,34 @@ const server = http.createServer((req, res) => {
           }
 
           const employee = results[0];
-          if (employee.password !== password) {
-            res.writeHead(401, { 'Content-Type': 'application/json' });
-            return res.end(JSON.stringify({ success: false, message: 'Invalid password' }));
-          }
 
-          // Create session token
-          const token = randomBytes(16).toString('hex');
-          sessions[token] = {
-            id: employee.employee_id,
-            username: employee.username,
-            role: employee.role || 'Cashier'
-          };
+          // 🔹 Compare hashed password
+          bcrypt.compare(password, employee.password, (err, isMatch) => {
+            if (err) {
+              console.error('Compare Error:', err);
+              res.writeHead(500, { 'Content-Type': 'application/json' });
+              return res.end(JSON.stringify({ success: false, message: 'Error verifying password' }));
+            }
 
-          res.writeHead(200, {
-            'Content-Type': 'application/json',
-            'Set-Cookie': `session=${token}; HttpOnly; Path=/; Max-Age=3600`
+            if (!isMatch) {
+              res.writeHead(401, { 'Content-Type': 'application/json' });
+              return res.end(JSON.stringify({ success: false, message: 'Invalid password' }));
+            }
+
+            // Create session token
+            const token = randomBytes(16).toString('hex');
+            sessions[token] = {
+              id: employee.employee_id,
+              username: employee.username,
+              role: employee.role || 'Cashier'
+            };
+
+            res.writeHead(200, {
+              'Content-Type': 'application/json',
+              'Set-Cookie': `session=${token}; HttpOnly; Path=/; Max-Age=3600`
+            });
+            res.end(JSON.stringify({ success: true, role: employee.role }));
           });
-          res.end(JSON.stringify({ success: true, role: employee.role }));
         });
       } catch (e) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -116,47 +127,54 @@ const server = http.createServer((req, res) => {
 
 // ADMIN: Register New Employee
 if (req.method === 'POST' && reqPath === '/Employee/register') {
-  const cookie = req.headers.cookie || '';
-  const match = cookie.match(/session=([a-f0-9]+)/);
-  const token = match ? match[1] : null;
-  const session = token ? sessions[token] : null;
+    const cookie = req.headers.cookie || '';
+    const match = cookie.match(/session=([a-f0-9]+)/);
+    const token = match ? match[1] : null;
+    const session = token ? sessions[token] : null;
 
-  // Only allow if logged in AND role is Admin
-  if (!session || String(session.role).toLowerCase() !== 'admin') {
-    res.writeHead(403, { 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify({ success: false, message: 'Unauthorized: Admins only' }));
-  }
+    if (!session || String(session.role).toLowerCase() !== 'admin') {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: false, message: 'Unauthorized: Admins only' }));
+    }
 
-  let body = '';
-  req.on('data', chunk => body += chunk);
-  req.on('end', () => {
-    try {
-      const { name, username, password, role, email, phone } = JSON.parse(body);
-
-      if (!name || !username || !password) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ success: false, message: 'Missing required fields' }));
-      }
-
-      const sql = 'INSERT INTO Employees (name, username, password, role, email, phone) VALUES (?, ?, ?, ?, ?, ?)';
-      connection_pool.query(sql, [name, username, password, role || 'Employee', email || null, phone || null], (err) => {
-        if (err) {
-          console.error('DB Insert Error:', err);
-          res.writeHead(500, { 'Content-Type': 'application/json' });
-          return res.end(JSON.stringify({ success: false, message: 'Database error' }));
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', () => {
+      try {
+        const { name, username, password, role, email, phone } = JSON.parse(body);
+        if (!name || !username || !password) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ success: false, message: 'Missing required fields' }));
         }
 
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: true, message: 'Employee added successfully!' }));
-      });
-    } catch (e) {
-      console.error('JSON Parse Error:', e);
-      res.writeHead(400, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: false, message: 'Invalid JSON format' }));
-    }
-  });
-  return;
-}
+        // 🔹 Hash password before storing
+        bcrypt.hash(password, 10, (hashErr, hashedPassword) => {
+          if (hashErr) {
+            console.error('Hashing Error:', hashErr);
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ success: false, message: 'Password hashing failed' }));
+          }
+
+          const sql = 'INSERT INTO Employees (name, username, password, role, email, phone) VALUES (?, ?, ?, ?, ?, ?)';
+          connection_pool.query(sql, [name, username, hashedPassword, role || 'Employee', email || null, phone || null], (err) => {
+            if (err) {
+              console.error('DB Insert Error:', err);
+              res.writeHead(500, { 'Content-Type': 'application/json' });
+              return res.end(JSON.stringify({ success: false, message: 'Database error' }));
+            }
+
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: true, message: 'Employee added successfully!' }));
+          });
+        });
+      } catch (e) {
+        console.error('JSON Parse Error:', e);
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, message: 'Invalid JSON format' }));
+      }
+    });
+    return;
+  }
 
 //  ADMIN: GET all menu items
 if (req.method === 'GET' && reqPath === '/Employee/menu') {
@@ -290,6 +308,14 @@ if (req.method === 'PUT' && reqPath.startsWith('/Employee/menu/')) {
     req.on('data', chunk => body += chunk);
     req.on('end', () => {
       const { name, phone, email, password } = JSON.parse(body);
+      bcrypt.hash(password, 10, (hashErr, hashedPassword) => {
+        if (hashErr) {
+          console.error('Hashing Error:', hashErr);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ success: false, message: 'Password hashing failed' }));
+        }
+      
+      
       connection_pool.query(
         'INSERT INTO Customers (name, phone, email, password) VALUES (?, ?, ?, ?)',
         [name, phone, email, password],
@@ -303,14 +329,9 @@ if (req.method === 'PUT' && reqPath.startsWith('/Employee/menu/')) {
         }
       );
     });
+    });
     return;
   }
-
-
-
-
-
-
 
 
   if (req.method === 'POST' && req.url === '/api/login') {
@@ -319,20 +340,35 @@ if (req.method === 'PUT' && reqPath.startsWith('/Employee/menu/')) {
     req.on('end', () => {
       const { email, password } = JSON.parse(body);
       connection_pool.query(
-        'SELECT customer_id, name, email FROM Customers WHERE email = ? AND password = ? LIMIT 1',
-        [email, password],
+        'SELECT customer_id, name, email, password FROM Customers WHERE email = ? LIMIT 1',
+        [email],
         (err, rows) => {
           if (err) {
             res.writeHead(500, { 'Content-Type': 'application/json' });
             return res.end(JSON.stringify({ success: false, message: 'Database error' }));
           }
-          if (rows.length === 1) {
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ success: true, user: rows[0] }));
-          } else {
+          if (rows.length !== 1) {
             res.writeHead(401, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ success: false, message: 'Invalid credentials' }));
+            return res.end(JSON.stringify({ success: false, message: 'Invalid email or password' }));
           }
+
+          const user = rows[0];
+          bcrypt.compare(password, user.password, (cmpErr, match) => {
+            if (cmpErr) {
+              console.error('Compare Error:', cmpErr);
+              res.writeHead(500, { 'Content-Type': 'application/json' });
+              return res.end(JSON.stringify({ success: false, message: 'Error checking password' }));
+            }
+
+            if (!match) {
+              res.writeHead(401, { 'Content-Type': 'application/json' });
+              return res.end(JSON.stringify({ success: false, message: 'Invalid email or password' }));
+            }
+
+            delete user.password;
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: true, user }));
+          });
         }
       );
     });
