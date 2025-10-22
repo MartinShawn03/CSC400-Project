@@ -53,7 +53,7 @@ const server = http.createServer((req, res) => {
 
           const employee = results[0];
 
-          // 🔹 Compare hashed password
+          // �� Compare hashed password
           bcrypt.compare(password, employee.password, (err, isMatch) => {
             if (err) {
               console.error('Compare Error:', err);
@@ -126,8 +126,8 @@ const server = http.createServer((req, res) => {
     }
   }
 
-// ADMIN: Register New Employee
-if (req.method === 'POST' && reqPath === '/Employee/register') {
+  // ADMIN: Register New Employee
+  if (req.method === 'POST' && reqPath === '/Employee/register') {
     const cookie = req.headers.cookie || '';
     const match = cookie.match(/session=([a-f0-9]+)/);
     const token = match ? match[1] : null;
@@ -203,13 +203,13 @@ if (req.method === 'POST' && reqPath === '/Employee/register') {
   });
   return;
 }
-=======
     let body = '';
     req.on('data', chunk => body += chunk);
     req.on('end', () => {
       try {
         const { name, username, password, role, email, phone } = JSON.parse(body);
-        if (!name || !username || !password) {
+
+        if (!name || !username || !password || !email) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
           return res.end(JSON.stringify({ success: false, message: 'Missing required fields' }));
         }
@@ -232,6 +232,58 @@ if (req.method === 'POST' && reqPath === '/Employee/register') {
 
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ success: true, message: 'Employee added successfully!' }));
+        // Check if email already exists
+        const checkEmailSQL = 'SELECT employee_id FROM Employees WHERE email = ? LIMIT 1';
+        connection_pool.query(checkEmailSQL, [email], (err, rows) => {
+          if (err) {
+            console.error('DB Error (email check):', err);
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ success: false, message: 'Database error during email check' }));
+          }
+
+          if (rows.length > 0) {
+            res.writeHead(409, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ success: false, message: 'Email already exists' }));
+          }
+
+          // Check if username already exists
+          const checkUserSQL = 'SELECT employee_id FROM Employees WHERE username = ? LIMIT 1';
+          connection_pool.query(checkUserSQL, [username], (err2, userRows) => {
+            if (err2) {
+              console.error('DB Error (username check):', err2);
+              res.writeHead(500, { 'Content-Type': 'application/json' });
+              return res.end(JSON.stringify({ success: false, message: 'Database error during username check' }));
+            }
+
+            if (userRows.length > 0) {
+              res.writeHead(409, { 'Content-Type': 'application/json' });
+              return res.end(JSON.stringify({ success: false, message: 'Username already exists' }));
+            }
+
+            // 🔹 Hash password before storing
+            bcrypt.hash(password, 10, (hashErr, hashedPassword) => {
+              if (hashErr) {
+                console.error('Hashing Error:', hashErr);
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                return res.end(JSON.stringify({ success: false, message: 'Password hashing failed' }));
+              }
+
+              // Insert new employee
+              const insertSQL = `
+                INSERT INTO Employees (name, username, password, role, email, phone)
+                VALUES (?, ?, ?, ?, ?, ?)
+              `;
+              connection_pool.query(insertSQL, [name, username, hashedPassword, role || 'Employee', email, phone || null], (err3) => {
+                if (err3) {
+                  console.error('DB Insert Error:', err3);
+                  res.writeHead(500, { 'Content-Type': 'application/json' });
+                  return res.end(JSON.stringify({ success: false, message: 'Database error during insert' }));
+                }
+
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: true, message: 'Employee registered successfully!' }));
+              });
+            });
           });
         });
       } catch (e) {
@@ -255,50 +307,115 @@ if (req.method === 'GET' && reqPath === '/Employee/list') {
     return res.end(JSON.stringify({ success: false, message: 'Unauthorized: Admins only' }));
   }
 
-  connection_pool.query(
-    'SELECT employee_id, name, username, email, role, phone, hire_date FROM Employees ORDER BY employee_id ASC',
-    (err, rows) => {
+  //  ADMIN: Get all employees
+  if (req.method === 'GET' && reqPath === '/Employee/list') {
+    const cookie = req.headers.cookie || '';
+    const match = cookie.match(/session=([a-f0-9]+)/);
+    const token = match ? match[1] : null;
+    const session = token ? sessions[token] : null;
+
+    if (!session || String(session.role).toLowerCase() !== 'admin') {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: false, message: 'Unauthorized: Admins only' }));
+    }
+
+    connection_pool.query(
+      'SELECT employee_id, name, username, email, role, phone, hire_date FROM Employees ORDER BY employee_id ASC',
+      (err, rows) => {
+        if (err) {
+          console.error('DB Fetch Error:', err);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ success: false, message: 'Database error' }));
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, employees: rows }));
+      }
+    );
+    return;
+  }
+
+  //  ADMIN: Delete employee by ID
+  if (req.method === 'DELETE' && reqPath.startsWith('/Employee/delete/')) {
+    const cookie = req.headers.cookie || '';
+    const match = cookie.match(/session=([a-f0-9]+)/);
+    const token = match ? match[1] : null;
+    const session = token ? sessions[token] : null;
+
+    if (!session || String(session.role).toLowerCase() !== 'admin') {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: false, message: 'Unauthorized: Admins only' }));
+    }
+
+    const targetId = parseInt(reqPath.split('/').pop(), 10);
+    if (targetId === session.id) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: false, message: 'You cannot delete your own account' }));
+    }
+
+    connection_pool.query('DELETE FROM Employees WHERE employee_id = ?', [targetId], (err, result) => {
       if (err) {
-        console.error('DB Fetch Error:', err);
+        console.error('DB Delete Error:', err);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: false, message: 'Database error' }));
+      }
+
+      if (result.affectedRows === 0) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: false, message: 'Employee not found' }));
+      }
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, message: 'Employee deleted successfully' }));
+    });
+    return;
+  }
+
+  //  ADMIN: GET all menu items
+  if (req.method === 'GET' && reqPath === '/Employee/menu') {
+    const cookie = req.headers.cookie || '';
+    const match = cookie.match(/session=([a-f0-9]+)/);
+    const token = match ? match[1] : null;
+    const session = token ? sessions[token] : null;
+
+    // Must be Admin
+    if (!session || String(session.role).toLowerCase() !== 'admin') {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: false, message: 'Unauthorized: Admins only' }));
+    }
+
+    connection_pool.query('SELECT * FROM Menu', (err, rows) => {
+      if (err) {
+        console.error('DB Error:', err);
         res.writeHead(500, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({ success: false, message: 'Database error' }));
       }
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: true, employees: rows }));
-    }
-  );
-  return;
-}
-
-//  ADMIN: Delete employee by ID
-if (req.method === 'DELETE' && reqPath.startsWith('/Employee/delete/')) {
-  const cookie = req.headers.cookie || '';
-  const match = cookie.match(/session=([a-f0-9]+)/);
-  const token = match ? match[1] : null;
-  const session = token ? sessions[token] : null;
-
-  if (!session || String(session.role).toLowerCase() !== 'admin') {
-    res.writeHead(403, { 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify({ success: false, message: 'Unauthorized: Admins only' }));
+      res.end(JSON.stringify({ success: true, items: rows }));
+    });
+    return;
   }
 
-  const targetId = parseInt(reqPath.split('/').pop(), 10);
-  if (targetId === session.id) {
-    res.writeHead(403, { 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify({ success: false, message: 'You cannot delete your own account' }));
-  }
+  //  ADMIN: Add new menu item
+  if (req.method === 'POST' && reqPath === '/Employee/menu') {
+    const cookie = req.headers.cookie || '';
+    const match = cookie.match(/session=([a-f0-9]+)/);
+    const token = match ? match[1] : null;
+    const session = token ? sessions[token] : null;
 
-  connection_pool.query('DELETE FROM Employees WHERE employee_id = ?', [targetId], (err, result) => {
-    if (err) {
-      console.error('DB Delete Error:', err);
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ success: false, message: 'Database error' }));
+    if (!session || String(session.role).toLowerCase() !== 'admin') {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: false, message: 'Unauthorized: Admins only' }));
     }
 
-    if (result.affectedRows === 0) {
-      res.writeHead(404, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ success: false, message: 'Employee not found' }));
-    }
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', () => {
+      try {
+        const { item_name, description, price, category } = JSON.parse(body);
+        if (!item_name || !price) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ success: false, message: 'Missing fields' }));
+        }
 
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ success: true, message: 'Employee deleted successfully' }));
@@ -349,8 +466,19 @@ if (req.method === 'POST' && reqPath === '/Employee/menu') {
     try {
       const { item_name, description, price, category } = JSON.parse(body);
       if (!item_name || !price) {
+        const sql = 'INSERT INTO Menu (item_name, description, price, category) VALUES (?, ?, ?, ?)';
+        connection_pool.query(sql, [item_name, description, price, category], (err) => {
+          if (err) {
+            console.error('Insert Error:', err);
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ success: false, message: 'Database error' }));
+          }
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true }));
+        });
+      } catch {
         res.writeHead(400, { 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ success: false, message: 'Missing fields' }));
+        res.end(JSON.stringify({ success: false, message: 'Invalid request format' }));
       }
 
       const sql = 'INSERT INTO Menu (item_name, description, price, category) VALUES (?, ?, ?, ?)';
@@ -445,56 +573,70 @@ if (req.method === 'DELETE' && reqPath.startsWith('/Employee/menu/')) {
   if (!session || String(session.role).toLowerCase() !== 'admin') {
     res.writeHead(403, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ success: false, message: 'Unauthorized: Admins only' }));
+    });
+    return;
   }
 
-  const itemId = reqPath.split('/').pop();
-  connection_pool.query('DELETE FROM Menu WHERE item_id = ?', [itemId], (err) => {
-    if (err) {
-      console.error('Delete Error:', err);
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ success: false, message: 'Database error' }));
+  //  ADMIN: Delete menu item
+  if (req.method === 'DELETE' && reqPath.startsWith('/Employee/menu/')) {
+    const cookie = req.headers.cookie || '';
+    const match = cookie.match(/session=([a-f0-9]+)/);
+    const token = match ? match[1] : null;
+    const session = token ? sessions[token] : null;
+
+    if (!session || String(session.role).toLowerCase() !== 'admin') {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: false, message: 'Unauthorized: Admins only' }));
     }
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ success: true }));
-  });
-  return;
-}
 
-// ADMIN: Toggle menu item availability (PUT /Employee/menu/:id)
-if (req.method === 'PUT' && reqPath.startsWith('/Employee/menu/')) {
-  const cookie = req.headers.cookie || '';
-  const match = cookie.match(/session=([a-f0-9]+)/);
-  const token = match ? match[1] : null;
-  const session = token ? sessions[token] : null;
-
-  if (!session || String(session.role).toLowerCase() !== 'admin') {
-    res.writeHead(403, { 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify({ success: false, message: 'Unauthorized: Admins only' }));
+    const itemId = reqPath.split('/').pop();
+    connection_pool.query('DELETE FROM Menu WHERE item_id = ?', [itemId], (err) => {
+      if (err) {
+        console.error('Delete Error:', err);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: false, message: 'Database error' }));
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true }));
+    });
+    return;
   }
 
-  const itemId = reqPath.split('/').pop();
-  let body = '';
-  req.on('data', chunk => body += chunk);
-  req.on('end', () => {
-    try {
-      const { available } = JSON.parse(body);
-      const sql = 'UPDATE Menu SET available = ? WHERE item_id = ?';
-      connection_pool.query(sql, [available, itemId], (err) => {
-        if (err) {
-          console.error('Update Error:', err);
-          res.writeHead(500, { 'Content-Type': 'application/json' });
-          return res.end(JSON.stringify({ success: false, message: 'Database error' }));
-        }
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: true }));
-      });
-    } catch {
-      res.writeHead(400, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: false, message: 'Invalid JSON format' }));
+  // ADMIN: Toggle menu item availability (PUT /Employee/menu/:id)
+  if (req.method === 'PUT' && reqPath.startsWith('/Employee/menu/')) {
+    const cookie = req.headers.cookie || '';
+    const match = cookie.match(/session=([a-f0-9]+)/);
+    const token = match ? match[1] : null;
+    const session = token ? sessions[token] : null;
+
+    if (!session || String(session.role).toLowerCase() !== 'admin') {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: false, message: 'Unauthorized: Admins only' }));
     }
-  });
-  return;
-}
+
+    const itemId = reqPath.split('/').pop();
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', () => {
+      try {
+        const { available } = JSON.parse(body);
+        const sql = 'UPDATE Menu SET available = ? WHERE item_id = ?';
+        connection_pool.query(sql, [available, itemId], (err) => {
+          if (err) {
+            console.error('Update Error:', err);
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ success: false, message: 'Database error' }));
+          }
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true }));
+        });
+      } catch {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, message: 'Invalid JSON format' }));
+      }
+    });
+    return;
+  }
 
   //  Customer registration and login
   if (req.method === 'POST' && req.url === '/api/register') {
@@ -515,16 +657,22 @@ if (req.method === 'PUT' && reqPath.startsWith('/Employee/menu/')) {
           if (err) {
             res.writeHead(500, { 'Content-Type': 'application/json' });
             return res.end(JSON.stringify({ success: false, message: 'Database error' }));
+        connection_pool.query(
+          'INSERT INTO Customers (name, phone, email, password) VALUES (?, ?, ?, ?)',
+          [name, phone, email, hashedPassword],
+          (err) => {
+            if (err) {
+              res.writeHead(500, { 'Content-Type': 'application/json' });
+              return res.end(JSON.stringify({ success: false, message: 'Database error' }));
+            }
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: true }));
           }
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ success: true }));
-        }
-      );
-    });
+        );
+      });
     });
     return;
   }
-
 
   if (req.method === 'POST' && req.url === '/api/login') {
     let body = '';
@@ -574,10 +722,56 @@ if (req.method === 'POST' && req.url === '/api/employee/createOrder') {
   req.on('end', () => {
     try {
       const { customer_id = null, item_id, quantity } = JSON.parse(body);
+  // ✅ EMPLOYEE: Create Order (manual entry)
+  if (req.method === 'POST' && req.url === '/api/employee/createOrder') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', () => {
+      try {
+        const { customer_id = null, item_id, quantity } = JSON.parse(body);
 
-      if (!item_id || !quantity) {
+        if (!item_id || !quantity) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ success: false, message: 'Missing fields' }));
+        }
+
+        const sql = `
+          INSERT INTO Orders (customer_id, item_id, quanity, status)
+          VALUES (?, ?, ?, 'Pending')
+        `;
+
+        connection_pool.query(sql, [customer_id, item_id, quantity], (err) => {
+          if (err) {
+            console.error('DB Insert Error:', err);
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ success: false, message: 'Database error' }));
+          }
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, message: 'Order created successfully' }));
+        });
+
+      } catch (e) {
+        console.error('JSON Parse Error:', e);
         res.writeHead(400, { 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ success: false, message: 'Missing fields' }));
+        res.end(JSON.stringify({ success: false, message: 'Invalid JSON' }));
+      }
+    });
+    return;
+  }
+
+  // ✅ EMPLOYEE: Fetch all pending orders
+  if (req.method === 'GET' && req.url === '/api/orders/pending') {
+    const sql = `
+      SELECT order_id, customer_id, item_id, quanity AS quantity, status, order_time
+      FROM Orders
+      WHERE status = 'Pending'
+      ORDER BY order_time DESC
+    `;
+    connection_pool.query(sql, (err, rows) => {
+      if (err) {
+        console.error('DB Fetch Error:', err);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: false, message: 'Database error' }));
       }
 
       const sql = `
@@ -639,7 +833,26 @@ if (req.method === 'GET' && req.url === '/api/menu') {
   });
   return;
 }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, orders: rows }));
+    });
+    return;
+  }
 
+  // ✅ Public: Fetch available menu items (for customers & employees)
+  if (req.method === 'GET' && req.url === '/api/menu') {
+    const sql = 'SELECT * FROM Menu WHERE available = 1 OR available IS NULL';
+    connection_pool.query(sql, (err, rows) => {
+      if (err) {
+        console.error('DB Error:', err);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: false, message: 'Database error' }));
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, items: rows }));
+    });
+    return;
+  }
 
   //  Static file handler
   const filePath = path.join(baseDir, 'public_html', reqPath);
