@@ -147,34 +147,150 @@ if (req.method === 'POST' && reqPath === '/Employee/register') {
           return res.end(JSON.stringify({ success: false, message: 'Missing required fields' }));
         }
 
-        // 🔹 Hash password before storing
-        bcrypt.hash(password, 10, (hashErr, hashedPassword) => {
-          if (hashErr) {
-            console.error('Hashing Error:', hashErr);
+if (req.method === 'POST' && reqPath === '/Employee/register') {
+  const cookie = req.headers.cookie || '';
+  const match = cookie.match(/session=([a-f0-9]+)/);
+  const token = match ? match[1] : null;
+  const session = token ? sessions[token] : null;
+
+  // Only admins can register new employees
+  if (!session || String(session.role).toLowerCase() !== 'admin') {
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ success: false, message: 'Unauthorized: Admins only' }));
+  }
+
+  let body = '';
+  req.on('data', chunk => body += chunk);
+  req.on('end', () => {
+    try {
+      const { name, username, password, role, email, phone } = JSON.parse(body);
+      if (!name || !username || !password || !email) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: false, message: 'Missing required fields' }));
+      }
+
+      // Check if email already exists
+      connection_pool.query('SELECT employee_id FROM Employees WHERE email = ? LIMIT 1', [email], (err, emailRows) => {
+        if (err) {
+          console.error('DB Error (email check):', err);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ success: false, message: 'Database error' }));
+        }
+
+        if (emailRows.length > 0) {
+          res.writeHead(409, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ success: false, message: 'Email already exists' }));
+        }
+
+        // Check if username already exists
+        connection_pool.query('SELECT employee_id FROM Employees WHERE username = ? LIMIT 1', [username], (err2, userRows) => {
+          if (err2) {
+            console.error('DB Error (username check):', err2);
             res.writeHead(500, { 'Content-Type': 'application/json' });
-            return res.end(JSON.stringify({ success: false, message: 'Password hashing failed' }));
+            return res.end(JSON.stringify({ success: false, message: 'Database error' }));
           }
 
-          const sql = 'INSERT INTO Employees (name, username, password, role, email, phone) VALUES (?, ?, ?, ?, ?, ?)';
-          connection_pool.query(sql, [name, username, hashedPassword, role || 'Employee', email || null, phone || null], (err) => {
-            if (err) {
-              console.error('DB Insert Error:', err);
+          if (userRows.length > 0) {
+            res.writeHead(409, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ success: false, message: 'Username already exists' }));
+          }
+
+          // Hash password before inserting
+          bcrypt.hash(password, 10, (hashErr, hashedPassword) => {
+            if (hashErr) {
+              console.error('Hashing Error:', hashErr);
               res.writeHead(500, { 'Content-Type': 'application/json' });
-              return res.end(JSON.stringify({ success: false, message: 'Database error' }));
+              return res.end(JSON.stringify({ success: false, message: 'Password hashing failed' }));
             }
 
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ success: true, message: 'Employee added successfully!' }));
+            const insertSQL = `
+              INSERT INTO Employees (name, username, password, role, email, phone)
+              VALUES (?, ?, ?, ?, ?, ?)
+            `;
+            connection_pool.query(insertSQL, [name, username, hashedPassword, role || 'Employee', email, phone || null], (err3) => {
+              if (err3) {
+                console.error('DB Insert Error:', err3);
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                return res.end(JSON.stringify({ success: false, message: 'Database insert error' }));
+              }
+
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ success: true, message: 'Employee registered successfully!' }));
+            });
           });
         });
-      } catch (e) {
-        console.error('JSON Parse Error:', e);
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: false, message: 'Invalid JSON format' }));
-      }
-    });
-    return;
+      });
+    } catch (e) {
+      console.error('JSON Parse Error:', e);
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, message: 'Invalid JSON format' }));
+    }
+  });
+  return;
+}
+
+//  ADMIN: Get all employees
+if (req.method === 'GET' && reqPath === '/Employee/list') {
+  const cookie = req.headers.cookie || '';
+  const match = cookie.match(/session=([a-f0-9]+)/);
+  const token = match ? match[1] : null;
+  const session = token ? sessions[token] : null;
+
+  if (!session || String(session.role).toLowerCase() !== 'admin') {
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ success: false, message: 'Unauthorized: Admins only' }));
   }
+
+  connection_pool.query(
+    'SELECT employee_id, name, username, email, role, phone, hire_date FROM Employees ORDER BY employee_id ASC',
+    (err, rows) => {
+      if (err) {
+        console.error('DB Fetch Error:', err);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: false, message: 'Database error' }));
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, employees: rows }));
+    }
+  );
+  return;
+}
+
+//  ADMIN: Delete employee by ID
+if (req.method === 'DELETE' && reqPath.startsWith('/Employee/delete/')) {
+  const cookie = req.headers.cookie || '';
+  const match = cookie.match(/session=([a-f0-9]+)/);
+  const token = match ? match[1] : null;
+  const session = token ? sessions[token] : null;
+
+  if (!session || String(session.role).toLowerCase() !== 'admin') {
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ success: false, message: 'Unauthorized: Admins only' }));
+  }
+
+  const targetId = parseInt(reqPath.split('/').pop(), 10);
+  if (targetId === session.id) {
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ success: false, message: 'You cannot delete your own account' }));
+  }
+
+  connection_pool.query('DELETE FROM Employees WHERE employee_id = ?', [targetId], (err, result) => {
+    if (err) {
+      console.error('DB Delete Error:', err);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: false, message: 'Database error' }));
+    }
+
+    if (result.affectedRows === 0) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: false, message: 'Employee not found' }));
+    }
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, message: 'Employee deleted successfully' }));
+  });
+  return;
+}
 
 //  ADMIN: GET all menu items
 if (req.method === 'GET' && reqPath === '/Employee/menu') {
@@ -375,7 +491,7 @@ if (req.method === 'PUT' && reqPath.startsWith('/Employee/menu/')) {
     return;
   }
 
-  // ✅ EMPLOYEE: Create Order (manual entry)
+  //  EMPLOYEE: Create Order (manual entry)
 if (req.method === 'POST' && req.url === '/api/employee/createOrder') {
   let body = '';
   req.on('data', chunk => body += chunk);
@@ -412,7 +528,7 @@ if (req.method === 'POST' && req.url === '/api/employee/createOrder') {
   return;
 }
 
-// ✅ EMPLOYEE: Fetch all pending orders
+//  EMPLOYEE: Fetch all pending orders
 if (req.method === 'GET' && req.url === '/api/orders/pending') {
   const sql = `
     SELECT order_id, customer_id, item_id, quanity AS quantity, status, order_time
@@ -433,7 +549,7 @@ if (req.method === 'GET' && req.url === '/api/orders/pending') {
   return;
 }
 
-// ✅ Public: Fetch available menu items (for customers & employees)
+//  Public: Fetch available menu items (for customers & employees)
 if (req.method === 'GET' && req.url === '/api/menu') {
   const sql = 'SELECT * FROM Menu WHERE available = 1 OR available IS NULL';
   connection_pool.query(sql, (err, rows) => {
@@ -476,4 +592,3 @@ if (req.method === 'GET' && req.url === '/api/menu') {
 });
 
 server.listen(80, () => console.log(' Server running on port 80'));
-
