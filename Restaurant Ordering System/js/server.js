@@ -3,8 +3,9 @@ const fs = require('fs');
 const path = require('path');
 const mysql = require('mysql2');
 const { randomBytes } = require('crypto');
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY); 
-require('dotenv').config();
+require('dotenv').config({ path: '../.env' });
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+
 
 const baseDir = path.resolve(__dirname, '..');
 
@@ -426,7 +427,7 @@ if (req.method === 'POST' && req.url === '/create-payment-intent') {
           return res.end(JSON.stringify({ success: false, message: 'Missing orderId' }));
         }
 
-        
+
        connection_pool.query(
           'SELECT SUM(m.price * o.quanity) as total FROM Orders o JOIN Menu m ON o.item_id = m.item_id WHERE o.order_id = ? AND o.status = ?',
           [orderId, 'Pending'],
