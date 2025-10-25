@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const mysql = require('mysql2');
 const { randomBytes } = require('crypto');
-
+const formidable = require('formidable');
 const baseDir = path.resolve(__dirname, '..');
 
 const connection_pool = mysql.createPool({
@@ -280,7 +280,7 @@ if (req.method === 'GET' && reqPath === '/Employee/menu') {
   });
   return;
 }
-
+/*
 //  ADMIN: Add new menu item
 if (req.method === 'POST' && reqPath === '/Employee/menu') {
   const cookie = req.headers.cookie || '';
@@ -320,6 +320,70 @@ if (req.method === 'POST' && reqPath === '/Employee/menu') {
   });
   return;
 }
+*/
+
+//  ADMIN: Add new menu item (with image upload)
+if (req.method === 'POST' && reqPath === '/Employee/menu') {
+  const cookie = req.headers.cookie || '';
+  const match = cookie.match(/session=([a-f0-9]+)/);
+  const token = match ? match[1] : null;
+  const session = token ? sessions[token] : null;
+
+  // Only admins can access
+  if (!session || String(session.role).toLowerCase() !== 'admin') {
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ success: false, message: 'Unauthorized: Admins only' }));
+  }
+
+  // Use Formidable to handle text + image upload
+  const form = new formidable.IncomingForm();
+  const uploadDir = path.join(baseDir, 'public_html', 'image');
+  form.uploadDir = uploadDir;
+  form.keepExtensions = true;
+
+  form.parse(req, (err, fields, files) => {
+    if (err) {
+      console.error('Form parse error:', err);
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: false, message: 'Form parse error' }));
+    }
+
+    const item_name = fields.item_name?.[0] || '';
+    const description = fields.description?.[0] || '';
+    const price = fields.price?.[0] || '';
+    const category = fields.category?.[0] || '';
+    const imageFile = files.image?.[0];
+
+    if (!item_name || !price) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: false, message: 'Missing item name or price' }));
+    }
+
+    let imageName = null;
+    if (imageFile && imageFile.filepath) {
+      // Move uploaded file into /public_html/image/
+      imageName = path.basename(imageFile.filepath);
+      const newPath = path.join(uploadDir, imageName);
+      fs.renameSync(imageFile.filepath, newPath);
+    }
+
+    // Insert new menu item into database
+    const sql = 'INSERT INTO Menu (item_name, description, price, category, image, available) VALUES (?, ?, ?, ?, ?, 1)';
+    connection_pool.query(sql, [item_name, description, price, category, imageName], (err) => {
+      if (err) {
+        console.error('Insert Error:', err);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: false, message: 'Database error' }));
+      }
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, message: 'Menu item added successfully!' }));
+    });
+  });
+  return;
+}
+
+
 
 //  ADMIN: Delete menu item
 if (req.method === 'DELETE' && reqPath.startsWith('/Employee/menu/')) {
@@ -430,7 +494,7 @@ if (req.method === 'PUT' && reqPath.startsWith('/Employee/menu/')) {
     return;
   }
 
-  //  EMPLOYEE: Create Order (manual entry)
+  // EMPLOYEE: Create Order (manual entry)
 if (req.method === 'POST' && req.url === '/api/employee/createOrder') {
   let body = '';
   req.on('data', chunk => body += chunk);
@@ -444,7 +508,7 @@ if (req.method === 'POST' && req.url === '/api/employee/createOrder') {
       }
 
       const sql = `
-        INSERT INTO Orders (customer_id, item_id, quanity, status)
+        INSERT INTO Orders (customer_id, item_id, quantity, status)
         VALUES (?, ?, ?, 'Pending')
       `;
 
