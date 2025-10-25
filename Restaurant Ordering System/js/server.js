@@ -5,8 +5,6 @@ const mysql = require('mysql2');
 const { randomBytes } = require('crypto');
 const bcrypt = require('bcrypt');
 const formidable = require('formidable');
-
-
 const baseDir = path.resolve(__dirname, '..');
 
 const connection_pool = mysql.createPool({
@@ -171,7 +169,6 @@ const server = http.createServer((req, res) => {
     }
   }
 
-<<<<<<< HEAD
 
 //Email Validation
 if (req.method === 'POST' && reqPath === '/Employee/validate-email') {
@@ -346,15 +343,43 @@ if (req.method === 'POST' && reqPath === '/Employee/register') {
       return res.end(JSON.stringify({ success: false, message: 'Unauthorized: Admins only' }));
     }
 
-    let body = '';
-    req.on('data', chunk => body += chunk);
-    req.on('end', () => {
-      try {
-        const { name, username, password, role, email, phone } = JSON.parse(body);
+//Email Validation
+if (req.method === 'POST' && reqPath === '/Employee/validate-email') {
+  const cookie = req.headers.cookie || '';
+  const match = cookie.match(/session=([a-f0-9]+)/);
+  const token = match ? match[1] : null;
+  const session = token ? sessions[token] : null;
 
-        if (!name || !username || !password || !email) {
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          return res.end(JSON.stringify({ success: false, message: 'Missing required fields' }));
+  if (!session || String(session.role).toLowerCase() !== 'admin') {
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ success: false, message: 'Unauthorized: Admins only' }));
+  }
+
+  let body = '';
+  req.on('data', chunk => body += chunk);
+  req.on('end', async () => {
+    try {
+      const { email } = JSON.parse(body);
+
+      if (!email) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: false, message: 'Email is required' }));
+      }
+
+      // Basic email format validation
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: false, message: 'Invalid email format' }));
+      }
+
+      // Check if email already exists in database
+      const checkEmailSQL = 'SELECT employee_id FROM Employees WHERE email = ? LIMIT 1';
+      connection_pool.query(checkEmailSQL, [email], (err, rows) => {
+        if (err) {
+          console.error('DB Error (email check):', err);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ success: false, message: 'Database error during email check' }));
         }
 
         // 🔹 Hash password before storing
@@ -380,63 +405,133 @@ if (req.method === 'POST' && reqPath === '/Employee/register') {
         connection_pool.query(checkEmailSQL, [email], (err, rows) => {
           if (err) {
             console.error('DB Error (email check):', err);
+        if (rows.length > 0) {
+          res.writeHead(409, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ success: false, message: 'Email already registered in system' }));
+        }
+
+        // Domain validation
+        const validationResult = validateEmailDomain(email);
+        if (validationResult.isValid) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ 
+            success: true, 
+            message: 'Email is valid and can receive messages',
+            details: validationResult
+          }));
+        } else {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ 
+            success: false, 
+            message: 'Email validation failed',
+            details: validationResult
+          }));
+        }
+      });
+
+    } catch (e) {
+      console.error('JSON Parse Error:', e);
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, message: 'Invalid JSON format' }));
+    }
+  });
+  return;
+}
+
+// ADMIN: Register New Employee
+if (req.method === 'POST' && reqPath === '/Employee/register') {
+  const cookie = req.headers.cookie || '';
+  const match = cookie.match(/session=([a-f0-9]+)/);
+  const token = match ? match[1] : null;
+  const session = token ? sessions[token] : null;
+
+  if (!session || String(session.role).toLowerCase() !== 'admin') {
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ success: false, message: 'Unauthorized: Admins only' }));
+  }
+
+  let body = '';
+  req.on('data', chunk => body += chunk);
+  req.on('end', () => {
+    try {
+      const { name, username, role, email, phone } = JSON.parse(body);
+
+      if (!name || !username || !email) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: false, message: 'Missing required fields' }));
+      }
+
+      // Auto-generate secure password
+      const generatedPassword = generateSecurePassword();
+
+      // Check if email already exists
+      const checkEmailSQL = 'SELECT employee_id FROM Employees WHERE email = ? LIMIT 1';
+      connection_pool.query(checkEmailSQL, [email], (err, rows) => {
+        if (err) {
+          console.error('DB Error (email check):', err);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ success: false, message: 'Database error during email check' }));
+        }
+
+        if (rows.length > 0) {
+          res.writeHead(409, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ success: false, message: 'Email already exists' }));
+        }
+
+        // Check if username already exists
+        const checkUserSQL = 'SELECT employee_id FROM Employees WHERE username = ? LIMIT 1';
+        connection_pool.query(checkUserSQL, [username], (err2, userRows) => {
+          if (err2) {
+            console.error('DB Error (username check):', err2);
             res.writeHead(500, { 'Content-Type': 'application/json' });
-            return res.end(JSON.stringify({ success: false, message: 'Database error during email check' }));
+            return res.end(JSON.stringify({ success: false, message: 'Database error during username check' }));
           }
 
-          if (rows.length > 0) {
+          if (userRows.length > 0) {
             res.writeHead(409, { 'Content-Type': 'application/json' });
-            return res.end(JSON.stringify({ success: false, message: 'Email already exists' }));
+            return res.end(JSON.stringify({ success: false, message: 'Username already exists' }));
           }
 
-          // Check if username already exists
-          const checkUserSQL = 'SELECT employee_id FROM Employees WHERE username = ? LIMIT 1';
-          connection_pool.query(checkUserSQL, [username], (err2, userRows) => {
-            if (err2) {
-              console.error('DB Error (username check):', err2);
+          // 🔹 Hash the auto-generated password before storing
+          bcrypt.hash(generatedPassword, 10, (hashErr, hashedPassword) => {
+            if (hashErr) {
+              console.error('Hashing Error:', hashErr);
               res.writeHead(500, { 'Content-Type': 'application/json' });
-              return res.end(JSON.stringify({ success: false, message: 'Database error during username check' }));
+              return res.end(JSON.stringify({ success: false, message: 'Password hashing failed' }));
             }
 
-            if (userRows.length > 0) {
-              res.writeHead(409, { 'Content-Type': 'application/json' });
-              return res.end(JSON.stringify({ success: false, message: 'Username already exists' }));
-            }
-
-            // 🔹 Hash password before storing
-            bcrypt.hash(password, 10, (hashErr, hashedPassword) => {
-              if (hashErr) {
-                console.error('Hashing Error:', hashErr);
+            // Insert new employee with auto-generated hashed password
+            const insertSQL = `
+              INSERT INTO Employees (name, username, password, role, email, phone)
+              VALUES (?, ?, ?, ?, ?, ?)
+            `;
+            connection_pool.query(insertSQL, [name, username, hashedPassword, role || 'Employee', email, phone || null], (err3) => {
+              if (err3) {
+                console.error('DB Insert Error:', err3);
                 res.writeHead(500, { 'Content-Type': 'application/json' });
-                return res.end(JSON.stringify({ success: false, message: 'Password hashing failed' }));
+                return res.end(JSON.stringify({ success: false, message: 'Database error during insert' }));
               }
 
-              // Insert new employee
-              const insertSQL = `
-                INSERT INTO Employees (name, username, password, role, email, phone)
-                VALUES (?, ?, ?, ?, ?, ?)
-              `;
-              connection_pool.query(insertSQL, [name, username, hashedPassword, role || 'Employee', email, phone || null], (err3) => {
-                if (err3) {
-                  console.error('DB Insert Error:', err3);
-                  res.writeHead(500, { 'Content-Type': 'application/json' });
-                  return res.end(JSON.stringify({ success: false, message: 'Database error during insert' }));
-                }
-
-                res.writeHead(200, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ success: true, message: 'Employee registered successfully!' }));
-              });
+              // Return success with the generated password for display
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ 
+                success: true, 
+                message: 'Employee registered successfully!',
+                tempPassword: generatedPassword,
+                note: 'Please provide this temporary password to the employee'
+              }));
             });
           });
         });
-      } catch (e) {
-        console.error('JSON Parse Error:', e);
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: false, message: 'Invalid JSON format' }));
-      }
-    });
-    return;
-  }
+      });
+    } catch (e) {
+      console.error('JSON Parse Error:', e);
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, message: 'Invalid JSON format' }));
+    }
+  });
+  return;
+}
 
   //  ADMIN: Get all employees
   if (req.method === 'GET' && reqPath === '/Employee/list') {
@@ -546,7 +641,6 @@ if (req.method === 'POST' && reqPath === '/Employee/register') {
     connection_pool.query('SELECT * FROM Menu', (err, rows) => {
       if (err) {
         console.error('DB Error:', err);
->>>>>>> a278101 (fixed server.js merge)
         res.writeHead(500, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({ success: false, message: 'Database error' }));
       }
