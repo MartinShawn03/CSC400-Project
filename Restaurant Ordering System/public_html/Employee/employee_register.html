@@ -13,19 +13,17 @@
 
     <form id="registerForm" class="space-y-5">
       <div>
-        <label class="block text-gray-700 font-medium mb-1">Full Name</label>
+        <label class="block text-gray-700 font-medium mb-1">Full Name *</label>
         <input type="text" id="name" required class="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-amber-400">
       </div>
 
       <div>
-        <label class="block text-gray-700 font-medium mb-1">Username</label>
+        <label class="block text-gray-700 font-medium mb-1">Username *</label>
         <input type="text" id="username" required class="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-amber-400">
+        <p class="text-sm text-gray-500 mt-1">Employee will use this to login</p>
       </div>
 
-      <div>
-        <label class="block text-gray-700 font-medium mb-1">Password</label>
-        <input type="password" id="password" required class="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-amber-400">
-      </div>
+      <!-- REMOVED PASSWORD FIELD - Will be auto-generated -->
 
       <div>
         <label class="block text-gray-700 font-medium mb-1">Role</label>
@@ -36,8 +34,18 @@
       </div>
 
       <div>
-        <label class="block text-gray-700 font-medium mb-1">Email</label>
-        <input type="email" id="email" class="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-amber-400">
+        <label class="block text-gray-700 font-medium mb-1">Email *</label>
+        <div class="flex space-x-2">
+          <input type="email" id="email" required 
+                 class="flex-1 border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-amber-400"
+                 placeholder="employee@company.com">
+          <button type="button" id="validateEmailBtn" 
+                  class="bg-blue-500 text-white px-4 py-3 rounded-xl hover:bg-blue-600 transition-all whitespace-nowrap">
+            Validate Email
+          </button>
+        </div>
+        <div id="emailValidationResult" class="mt-2 text-sm hidden"></div>
+        <p class="text-sm text-gray-500 mt-1">A secure password will be generated and sent to this email</p>
       </div>
 
       <div>
@@ -45,8 +53,9 @@
         <input type="text" id="phone" class="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-amber-400">
       </div>
 
-      <button type="submit" class="w-full bg-amber-500 text-white font-semibold py-3 rounded-xl hover:bg-amber-600 transition-all">
-        Register Employee
+      <button type="submit" id="submitBtn" 
+              class="w-full bg-amber-500 text-white font-semibold py-3 rounded-xl hover:bg-amber-600 transition-all disabled:bg-gray-400 disabled:cursor-not-allowed">
+        Register Employee & Generate Password
       </button>
 
       <p class="text-center mt-4">
@@ -56,32 +65,132 @@
   </div>
 
   <script>
+    let isEmailValid = false;
+
+    // Email validation handler
+    document.getElementById('validateEmailBtn').addEventListener('click', async () => {
+      const email = document.getElementById('email').value;
+      const resultDiv = document.getElementById('emailValidationResult');
+      
+      if (!email) {
+        showValidationResult('Please enter an email address', 'error');
+        return;
+      }
+
+      // Basic email format check
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        showValidationResult('Please enter a valid email address', 'error');
+        return;
+      }
+
+      // Show loading
+      showValidationResult('Validating email...', 'loading');
+
+      try {
+        const res = await fetch('/Employee/validate-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email })
+        });
+
+        const result = await res.json();
+
+        if (result.success) {
+          showValidationResult('✓ Email is valid and ready to use', 'success');
+          isEmailValid = true;
+          updateSubmitButton();
+        } else {
+          showValidationResult(`✗ ${result.message}`, 'error');
+          isEmailValid = false;
+          updateSubmitButton();
+        }
+      } catch (error) {
+        showValidationResult('✗ Network error during validation', 'error');
+        isEmailValid = false;
+        updateSubmitButton();
+      }
+    });
+
+    // Form submission handler
     document.getElementById('registerForm').addEventListener('submit', async (e) => {
       e.preventDefault();
+      
+      if (!isEmailValid) {
+        alert('Please validate the email address first');
+        return;
+      }
+
+      const submitBtn = document.getElementById('submitBtn');
+      const originalText = submitBtn.textContent;
+      submitBtn.textContent = 'Registering...';
+      submitBtn.disabled = true;
 
       const data = {
         name: document.getElementById('name').value,
         username: document.getElementById('username').value,
-        password: document.getElementById('password').value,
         role: document.getElementById('role').value,
         email: document.getElementById('email').value,
         phone: document.getElementById('phone').value
       };
 
-      const res = await fetch('/Employee/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      });
+      try {
+        const res = await fetch('/Employee/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
 
-      const result = await res.json();
+        const result = await res.json();
 
-      if (result.success) {
-        alert('Employee registered successfully!');
-        document.getElementById('registerForm').reset();
-      } else {
-        alert(result.message || 'Failed to register employee.');
+        if (result.success) {
+          alert(` Employee registered successfully!\n\n📧 Credentials generated:\n\nUsername: ${data.username}\nTemporary Password: ${result.tempPassword}\n\nPlease provide these credentials to the employee and ask them to change their password on first login.`);
+          document.getElementById('registerForm').reset();
+          isEmailValid = false;
+          updateSubmitButton();
+          document.getElementById('emailValidationResult').classList.add('hidden');
+        } else {
+          alert(' ' + (result.message || 'Failed to register employee.'));
+        }
+      } catch (error) {
+        alert(' Network error: ' + error.message);
+      } finally {
+        submitBtn.textContent = originalText;
+        submitBtn.disabled = false;
       }
+    });
+
+    // Helper functions
+    function showValidationResult(message, type) {
+      const resultDiv = document.getElementById('emailValidationResult');
+      resultDiv.textContent = message;
+      resultDiv.className = 'mt-2 text-sm';
+      
+      switch (type) {
+        case 'success':
+          resultDiv.classList.add('text-green-600', 'font-medium');
+          break;
+        case 'error':
+          resultDiv.classList.add('text-red-600', 'font-medium');
+          break;
+        case 'loading':
+          resultDiv.classList.add('text-blue-600', 'font-medium');
+          break;
+      }
+      
+      resultDiv.classList.remove('hidden');
+    }
+
+    function updateSubmitButton() {
+      const submitBtn = document.getElementById('submitBtn');
+      submitBtn.disabled = !isEmailValid;
+    }
+
+    // Reset validation when email changes
+    document.getElementById('email').addEventListener('input', () => {
+      isEmailValid = false;
+      updateSubmitButton();
+      document.getElementById('emailValidationResult').classList.add('hidden');
     });
   </script>
 </body>
