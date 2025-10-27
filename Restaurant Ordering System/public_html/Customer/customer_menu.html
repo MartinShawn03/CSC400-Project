@@ -10,23 +10,26 @@
 <body class="bg-gray-50 text-gray-800 font-sans min-h-screen flex flex-col">
 
   <!-- Header -->
-  <header class="bg-white border-b border-gray-200">
-    <div class="max-w-6xl mx-auto flex justify-between items-center p-4">
-      <div class="flex items-center gap-3">
-        <button onclick="goBackOrHome()" 
-                class="sm:hidden text-gray-600 hover:text-gray-800 text-sm bg-gray-100 px-3 py-1 rounded-md border border-gray-200">
-          ← Back
-        </button>
-        <h1 class="text-xl sm:text-2xl font-semibold">Our Menu</h1>
-      </div>
-
-      <nav class="hidden sm:flex space-x-6 text-sm">
-        <a href="customer_main.html" class="hover:text-blue-600 transition">Home</a>
-        <a href="customer_cart.html" class="hover:text-blue-600 transition">Cart</a>
-        <a href="customer_checkout.html" class="hover:text-blue-600 transition">Checkout</a>
-      </nav>
+<header class="bg-white border-b border-gray-200">
+  <div class="max-w-6xl mx-auto flex justify-between items-center p-4">
+    <!-- Left side: logo/title -->
+    <div class="flex items-center gap-3">
+      <h1 class="text-xl sm:text-2xl font-semibold">Self Service Ordering</h1>
     </div>
-  </header>
+
+    <!-- Right side: navigation buttons -->
+    <nav class="flex items-center gap-2 ml-auto">
+      <a href="customer_main.html"
+         class="bg-gray-100 text-gray-800 px-3 py-1 rounded-md hover:bg-gray-200 transition">Home</a>
+      <a href="customer_cart.html"
+         class="bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700 transition">Cart</a>
+      <a href="customer_order.html"
+         class="bg-green-600 text-white px-3 py-1 rounded-md hover:bg-green-700 transition">My Orders</a>
+      <a href="customer_login.html"
+         class="bg-blue-100 text-gray-800 px-3 py-1 rounded-md hover:bg-blue-200 transition">Login</a>
+    </nav>
+  </div>
+</header>
 
   <!-- Main -->
   <main class="flex-grow max-w-6xl mx-auto px-4 py-8">
@@ -58,7 +61,77 @@
     </div>
   </footer>
 
-  <!-- JS -->
+  <!-- Customer Session Management -->
+  <script>
+  const CustomerSession = {
+    // Check if user is logged in
+    isLoggedIn() {
+      return localStorage.getItem('customerLoggedIn') === 'true';
+    },
+
+    // Get customer data
+    getCustomer() {
+      const data = localStorage.getItem('customerData');
+      return data ? JSON.parse(data) : null;
+    },
+
+    // Set customer session after login
+    setSession(customerData) {
+      localStorage.setItem('customerLoggedIn', 'true');
+      localStorage.setItem('customerData', JSON.stringify(customerData));
+      localStorage.setItem('customerEmail', customerData.email);
+    },
+
+    // Clear session on logout
+    clearSession() {
+      localStorage.removeItem('customerLoggedIn');
+      localStorage.removeItem('customerData');
+      localStorage.removeItem('customerEmail');
+
+      // Also call server logout
+      fetch('/api/logout', { method: 'POST' });
+    },
+
+    // Auto-populate checkout form if logged in
+    populateCheckoutForm() {
+      if (this.isLoggedIn() && document.getElementById('custName')) {
+        const customer = this.getCustomer();
+        document.getElementById('custName').value = customer.name || '';
+        document.getElementById('custEmail').value = customer.email || '';
+        // Make email read-only if logged in
+        document.getElementById('custEmail').readOnly = true;
+      }
+    },
+
+    // Update navigation based on login status
+    updateNavigation() {
+      const loginBtn = document.querySelector('a[href="customer_login.html"]');
+      const ordersBtn = document.querySelector('a[href="customer_order.html"]');
+
+      if (loginBtn) {
+        if (this.isLoggedIn()) {
+          loginBtn.textContent = 'Logout';
+          loginBtn.href = '#';
+          loginBtn.onclick = (e) => {
+            e.preventDefault();
+            this.clearSession();
+            window.location.href = 'customer_main.html';
+          };
+        } else {
+          loginBtn.textContent = 'Login';
+          loginBtn.href = 'customer_login.html';
+          loginBtn.onclick = null;
+        }
+      }
+    }
+  };
+
+  // Initialize on page load
+  document.addEventListener('DOMContentLoaded', () => {
+    CustomerSession.updateNavigation();
+  });
+  </script>
+
   <script>
     function goBackOrHome() {
       if (document.referrer && document.referrer !== window.location.href) {
@@ -68,7 +141,7 @@
       }
     }
 
-    // ✅ Fetch and display menu items dynamically
+    // Fetch and display menu items dynamically
     async function loadMenu() {
       const menuGrid = document.getElementById('menuGrid');
       menuGrid.innerHTML = '<p class="col-span-full text-center text-gray-500">Loading menu items...</p>';
@@ -121,7 +194,7 @@
     document.addEventListener('DOMContentLoaded', loadMenu);
   </script>
 
-  <!-- 🛒 Cart system -->
+  <!-- Cart system -->
   <script>
     const Cart = {
       items: JSON.parse(localStorage.getItem('cartItems')) || [],

@@ -10,28 +10,20 @@
 <body class="bg-gray-50 min-h-screen flex flex-col">
 
   <!-- Header -->
-  <header class="bg-white border-b border-gray-200 shadow-sm p-4 flex justify-between items-center">
-    <div class="flex items-center gap-2">
-      <!-- Mobile Back Button -->
-      <button onclick="goBackOrHome()" 
-              class="sm:hidden text-gray-700 bg-gray-100 px-3 py-1 rounded border border-gray-300 hover:bg-gray-200 transition">
-        ← Back
-      </button>
-      <h1 class="text-lg sm:text-xl font-semibold text-gray-800">Customer Login</h1>
+<header class="bg-white border-b border-gray-200">
+  <div class="max-w-6xl mx-auto flex justify-between items-center p-4">
+    <!-- Left side: logo/title -->
+    <div class="flex items-center gap-3">
+      <h1 class="text-xl sm:text-2xl font-semibold">Self Service Ordering</h1>
     </div>
 
-    <!-- Nav Buttons (visible on all screens) -->
-    <div class="flex gap-2">
+    <!-- Right side: navigation buttons -->
+    <nav class="flex items-center gap-2 ml-auto">
       <a href="customer_main.html"
-         class="bg-gray-100 text-gray-800 px-3 py-1 rounded border border-gray-300 hover:bg-gray-200 transition text-sm">
-         Home
-      </a>
-      <a href="customer_menu.html"
-         class="bg-gray-100 text-gray-800 px-3 py-1 rounded border border-gray-300 hover:bg-gray-200 transition text-sm">
-         Menu
-      </a>
-    </div>
-  </header>
+         class="bg-gray-100 text-gray-800 px-3 py-1 rounded-md hover:bg-gray-200 transition">Home</a>
+    </nav>
+  </div>
+</header>
 
   <!-- Login Box -->
   <main class="flex-grow flex items-center justify-center p-4">
@@ -55,29 +47,92 @@
         </button>
 
         <p class="text-center text-sm text-gray-600 mt-3">
-          Don’t have an account?
+          Don't have an account?
           <a href="customer_registration.html" class="text-blue-600 hover:underline">Register</a>
         </p>
       </form>
     </div>
   </main>
 
-  <!-- JS -->
+  <!-- Customer Session Management -->
   <script>
-    function goBackOrHome() {
-      if (document.referrer && document.referrer !== window.location.href) {
-        history.back();
-      } else {
-        window.location.href = "customer_main.html";
+  const CustomerSession = {
+    // Check if user is logged in
+    isLoggedIn() {
+      return localStorage.getItem('customerLoggedIn') === 'true';
+    },
+
+    // Get customer data
+    getCustomer() {
+      const data = localStorage.getItem('customerData');
+      return data ? JSON.parse(data) : null;
+    },
+
+    // Set customer session after login
+    setSession(customerData) {
+      localStorage.setItem('customerLoggedIn', 'true');
+      localStorage.setItem('customerData', JSON.stringify(customerData));
+      localStorage.setItem('customerEmail', customerData.email);
+    },
+
+    // Clear session on logout
+    clearSession() {
+      localStorage.removeItem('customerLoggedIn');
+      localStorage.removeItem('customerData');
+      localStorage.removeItem('customerEmail');
+
+      // Also call server logout
+      fetch('/api/logout', { method: 'POST' });
+    },
+
+    // Auto-populate checkout form if logged in
+    populateCheckoutForm() {
+      if (this.isLoggedIn() && document.getElementById('custName')) {
+        const customer = this.getCustomer();
+        document.getElementById('custName').value = customer.name || '';
+        document.getElementById('custEmail').value = customer.email || '';
+        // Make email read-only if logged in
+        document.getElementById('custEmail').readOnly = true;
+      }
+    },
+
+    // Update navigation based on login status
+    updateNavigation() {
+      const loginBtn = document.querySelector('a[href="customer_login.html"]');
+      const ordersBtn = document.querySelector('a[href="customer_order.html"]');
+
+      if (loginBtn) {
+        if (this.isLoggedIn()) {
+          loginBtn.textContent = 'Logout';
+          loginBtn.href = '#';
+          loginBtn.onclick = (e) => {
+            e.preventDefault();
+            this.clearSession();
+            window.location.href = 'customer_main.html';
+          };
+        } else {
+          loginBtn.textContent = 'Login';
+          loginBtn.href = 'customer_login.html';
+          loginBtn.onclick = null;
+        }
       }
     }
+  };
 
+  // Initialize on page load
+  document.addEventListener('DOMContentLoaded', () => {
+    CustomerSession.updateNavigation();
+  });
+  </script>
+
+  <!-- JS -->
+  <script>
     document.getElementById("loginForm").addEventListener("submit", async (e) => {
       e.preventDefault();
 
       const email = document.getElementById("email").value.trim();
       const password = document.getElementById("password").value.trim();
-      
+
       if (!email || !password) {
         showToast("❌ Please enter both email and password.", "error");
         return;
@@ -94,6 +149,10 @@
 
         if (res.ok && data.success) {
           showToast("✅ Login successful! Redirecting...");
+          
+          // Store session data
+          CustomerSession.setSession(data.user);
+          
           setTimeout(() => window.location.href = "/Customer/customer_menu.html", 1000);
         } else {
           showToast("❌ " + (data.message || 'Invalid email or password.'), "error");
@@ -103,6 +162,14 @@
         showToast("❌ Server connection error", "error");
       }
     });
+
+    function goBackOrHome() {
+      if (document.referrer && document.referrer !== window.location.href) {
+        history.back();
+      } else {
+        window.location.href = "customer_main.html";
+      }
+    }
   </script>
 
   <!-- Simple toast -->

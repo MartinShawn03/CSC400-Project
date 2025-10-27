@@ -18,6 +18,8 @@ const connection_pool = mysql.createPool({
 
 // Simple in-memory session store
 const sessions = {};
+const customerSessions = {};
+
 
 const server = http.createServer((req, res) => {
   let reqPath = decodeURIComponent(req.url.split('?')[0]);
@@ -44,6 +46,13 @@ const server = http.createServer((req, res) => {
     }
     return session;
   }
+
+function getCustomerSessionFromCookie(req) {
+  const cookie = req.headers.cookie || '';
+  const match = cookie.match(/cust_session=([a-f0-9]+)/);
+  const token = match ? match[1] : null;
+  return token ? customerSessions[token] : null;
+}
 
   // ---------- EMPLOYEE LOGIN ----------
   if (req.method === 'POST' && (reqPath === '/Employee/login' || reqPath === '/employee/login')) {
@@ -303,7 +312,7 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // ---------- ADMIN: Add new menu item (with image upload) ----------
+  // ---------- ADMIN: Add new menu item  ----------
   if (req.method === 'POST' && reqPath === '/Employee/menu') {
     const session = getSessionFromCookie();
     if (!session || String(session.role).toLowerCase() !== 'admin') {
@@ -459,53 +468,78 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // ---------- CUSTOMER: Login ----------
-  if (req.method === 'POST' && req.url === '/api/login') {
-    let body = '';
-    req.on('data', chunk => body += chunk);
-    req.on('end', () => {
-      try {
-        const { email, password } = JSON.parse(body);
-        connection_pool.query(
-          'SELECT customer_id, name, email, password FROM Customers WHERE email = ? LIMIT 1',
-          [email],
-          (err, rows) => {
-            if (err) {
+// ---------- CUSTOMER: Login with session ----------
+if (req.method === 'POST' && req.url === '/api/login') {
+  let body = '';
+  req.on('data', chunk => body += chunk);
+  req.on('end', () => {
+    try {
+      const { email, password } = JSON.parse(body);
+      connection_pool.query(
+        'SELECT customer_id, name, email, password FROM Customers WHERE email = ? LIMIT 1',
+        [email],
+        (err, rows) => {
+          if (err) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ success: false, message: 'Database error' }));
+          }
+          if (rows.length !== 1) {
+            res.writeHead(401, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ success: false, message: 'Invalid email or password' }));
+          }
+
+          const user = rows[0];
+          bcrypt.compare(password, user.password, (cmpErr, match) => {
+            if (cmpErr) {
               res.writeHead(500, { 'Content-Type': 'application/json' });
-              return res.end(JSON.stringify({ success: false, message: 'Database error' }));
+              return res.end(JSON.stringify({ success: false, message: 'Error checking password' }));
             }
-            if (rows.length !== 1) {
+
+            if (!match) {
               res.writeHead(401, { 'Content-Type': 'application/json' });
               return res.end(JSON.stringify({ success: false, message: 'Invalid email or password' }));
             }
 
-            const user = rows[0];
-            bcrypt.compare(password, user.password, (cmpErr, match) => {
-              if (cmpErr) {
-                console.error('Compare Error:', cmpErr);
-                res.writeHead(500, { 'Content-Type': 'application/json' });
-                return res.end(JSON.stringify({ success: false, message: 'Error checking password' }));
-              }
+            delete user.password;
 
-              if (!match) {
-                res.writeHead(401, { 'Content-Type': 'application/json' });
-                return res.end(JSON.stringify({ success: false, message: 'Invalid email or password' }));
-              }
+            // Create session token
+            const token = randomBytes(16).toString('hex');
+            customerSessions[token] = {
+              id: user.customer_id,
+              name: user.name,
+              email: user.email,
+              createdAt: Date.now()
+            };
 
-              delete user.password;
-              res.writeHead(200, { 'Content-Type': 'application/json' });
-              res.end(JSON.stringify({ success: true, user }));
+            res.writeHead(200, {
+              'Content-Type': 'application/json',
+              'Set-Cookie': `cust_session=${token}; HttpOnly; Path=/; Max-Age=86400` // 24 hours
             });
-          }
-        );
-      } catch (e) {
-        console.error('JSON Parse Error:', e);
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: false, message: 'Invalid JSON' }));
-      }
-    });
-    return;
-  }
+            res.end(JSON.stringify({ success: true, user }));
+          });
+        }
+      );
+    } catch (e) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, message: 'Invalid JSON' }));
+    }
+  });
+  return;
+}
+
+// ---------- CUSTOMER: Logout ----------
+if (req.method === 'POST' && req.url === '/api/logout') {
+  const cookie = req.headers.cookie || '';
+  const match = cookie.match(/cust_session=([a-f0-9]+)/);
+  if (match) delete customerSessions[match[1]];
+
+  res.writeHead(200, {
+    'Content-Type': 'application/json',
+    'Set-Cookie': 'cust_session=; HttpOnly; Path=/; Max-Age=0'
+  });
+  res.end(JSON.stringify({ success: true }));
+  return;
+}
 
   // ---------- EMPLOYEE: Create Order (manual entry) ----------
   if (req.method === 'POST' && req.url === '/api/employee/createOrder') {
@@ -580,6 +614,114 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+// ---------- CUSTOMER: Checkout ----------
+if (req.method === 'POST' && req.url === '/api/checkout') {
+  let body = '';
+  req.on('data', chunk => body += chunk);
+  req.on('end', () => {
+    try {
+      const { customer, items } = JSON.parse(body);
+
+      if (!items || !items.length) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: false, message: 'Cart is empty' }));
+      }
+
+      // Check if customer exists by email
+      connection_pool.query(
+        'SELECT customer_id FROM Customers WHERE email = ? LIMIT 1',
+        [customer.email],
+        (err, rows) => {
+          if (err) {
+            console.error('DB Error (customer check):', err);
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ success: false, message: 'Database error' }));
+          }
+
+          const createOrder = (customerId) => {
+            // Insert all items into Orders table
+            const values = items.map(i => [customerId, i.item_id, i.quantity, 'Pending']);
+            connection_pool.query(
+              'INSERT INTO Orders (customer_id, item_id, quanity, status) VALUES ?',
+              [values],
+              (err2) => {
+                if (err2) {
+                  console.error('DB Error (insert orders):', err2);
+                  res.writeHead(500, { 'Content-Type': 'application/json' });
+                  return res.end(JSON.stringify({ success: false, message: 'Database error' }));
+                }
+
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: true, message: 'Order placed successfully!' }));
+              }
+            );
+          };
+
+          if (rows.length > 0) {
+            // Customer exists
+            createOrder(rows[0].customer_id);
+          } else {
+            // Create new customer first
+            const insertCustomerSQL = 'INSERT INTO Customers (name, email, phone) VALUES (?, ?, ?)';
+            connection_pool.query(insertCustomerSQL, [customer.name, customer.email, customer.phone || null], (err3, result) => {
+              if (err3) {
+                console.error('DB Error (insert customer):', err3);
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                return res.end(JSON.stringify({ success: false, message: 'Database error creating customer' }));
+              }
+              createOrder(result.insertId);
+            });
+          }
+        }
+      );
+
+    } catch (e) {
+      console.error('Checkout Parse Error:', e);
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, message: 'Invalid JSON' }));
+    }
+  });
+  return;
+}
+
+// ---------- CUSTOMER: Fetch their orders ----------
+if (req.method === 'POST' && req.url === '/api/orders/customer') {
+  let body = '';
+  req.on('data', chunk => body += chunk);
+  req.on('end', () => {
+    try {
+      const { email } = JSON.parse(body);
+
+      if (!email) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: false, message: 'Email required' }));
+      }
+
+      const sql = `
+        SELECT o.order_id, m.item_name, o.quanity AS quantity, o.status, o.order_time
+        FROM Orders o
+        JOIN Menu m ON o.item_id = m.item_id
+        JOIN Customers c ON o.customer_id = c.customer_id
+        WHERE c.email = ?
+        ORDER BY o.order_time DESC
+      `;
+
+      connection_pool.query(sql, [email], (err, orders) => {
+        if (err) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ success: false, message: 'Database error' }));
+        }
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, orders }));
+      });
+    } catch (e) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, message: 'Invalid JSON' }));
+    }
+  });
+  return;
+}
   // ---------- Static file handler ----------
   const filePath = path.join(baseDir, 'public_html', reqPath);
   const ext = path.extname(filePath).toLowerCase();
