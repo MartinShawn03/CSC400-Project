@@ -9,18 +9,24 @@
 <body class="bg-gray-50 text-gray-800 font-sans min-h-screen flex flex-col">
 
   <!-- Header -->
-  <header class="bg-white border-b border-gray-200">
-    <div class="max-w-6xl mx-auto flex justify-between items-center p-4">
-      <div class="flex items-center gap-3">
-        <h1 class="text-xl sm:text-2xl font-semibold">Welcome</h1>
-      </div>
-
-      <a href="/Customer/customer_login.html"
-         class="bg-blue-600 text-white px-4 py-2 rounded-md text-sm shadow hover:bg-blue-700 transition">
-        Login
-      </a>
+<header class="bg-white border-b border-gray-200">
+  <div class="max-w-6xl mx-auto flex justify-between items-center p-4">
+    <!-- Left side: logo/title -->
+    <div class="flex items-center gap-3">
+      <h1 class="text-xl sm:text-2xl font-semibold">Self Service Ordering</h1>
     </div>
-  </header>
+
+    <!-- Right side: navigation buttons -->
+    <nav class="flex items-center gap-2 ml-auto">
+      <a href="customer_cart.html"
+         class="bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700 transition">Cart</a>
+      <a href="customer_order.html"
+         class="bg-green-600 text-white px-3 py-1 rounded-md hover:bg-green-700 transition">My Orders</a>
+      <a href="customer_login.html"
+         class="bg-blue-100 text-gray-800 px-3 py-1 rounded-md hover:bg-blue-200 transition">Login</a>
+    </nav>
+  </div>
+</header>
 
   <!-- Hero -->
   <section class="relative w-full h-64 sm:h-80 overflow-hidden">
@@ -76,7 +82,77 @@
     </div>
   </footer>
 
-  <!-- JS -->
+  <!-- Customer Session Management -->
+  <script>
+  const CustomerSession = {
+    // Check if user is logged in
+    isLoggedIn() {
+      return localStorage.getItem('customerLoggedIn') === 'true';
+    },
+
+    // Get customer data
+    getCustomer() {
+      const data = localStorage.getItem('customerData');
+      return data ? JSON.parse(data) : null;
+    },
+
+    // Set customer session after login
+    setSession(customerData) {
+      localStorage.setItem('customerLoggedIn', 'true');
+      localStorage.setItem('customerData', JSON.stringify(customerData));
+      localStorage.setItem('customerEmail', customerData.email);
+    },
+
+    // Clear session on logout
+    clearSession() {
+      localStorage.removeItem('customerLoggedIn');
+      localStorage.removeItem('customerData');
+      localStorage.removeItem('customerEmail');
+
+      // Also call server logout
+      fetch('/api/logout', { method: 'POST' });
+    },
+
+    // Auto-populate checkout form if logged in
+    populateCheckoutForm() {
+      if (this.isLoggedIn() && document.getElementById('custName')) {
+        const customer = this.getCustomer();
+        document.getElementById('custName').value = customer.name || '';
+        document.getElementById('custEmail').value = customer.email || '';
+        // Make email read-only if logged in
+        document.getElementById('custEmail').readOnly = true;
+      }
+    },
+
+    // Update navigation based on login status
+    updateNavigation() {
+      const loginBtn = document.querySelector('a[href="customer_login.html"]');
+      const ordersBtn = document.querySelector('a[href="customer_order.html"]');
+
+      if (loginBtn) {
+        if (this.isLoggedIn()) {
+          loginBtn.textContent = 'Logout';
+          loginBtn.href = '#';
+          loginBtn.onclick = (e) => {
+            e.preventDefault();
+            this.clearSession();
+            window.location.href = 'customer_main.html';
+          };
+        } else {
+          loginBtn.textContent = 'Login';
+          loginBtn.href = 'customer_login.html';
+          loginBtn.onclick = null;
+        }
+      }
+    }
+  };
+
+  // Initialize on page load
+  document.addEventListener('DOMContentLoaded', () => {
+    CustomerSession.updateNavigation();
+  });
+  </script>
+
   <script>
     async function loadFeaturedItems() {
       const featuredContainer = document.getElementById('featuredItems');
@@ -132,60 +208,59 @@
     document.addEventListener('DOMContentLoaded', loadFeaturedItems);
   </script>
 
-<script>
-  // 🛒 Simple Cart System (no external file needed)
-  const Cart = {
-    items: JSON.parse(localStorage.getItem('cartItems')) || [],
+  <!-- Cart System -->
+  <script>
+    const Cart = {
+      items: JSON.parse(localStorage.getItem('cartItems')) || [],
 
-    save() {
-      localStorage.setItem('cartItems', JSON.stringify(this.items));
-    },
+      save() {
+        localStorage.setItem('cartItems', JSON.stringify(this.items));
+      },
 
-    addItem({ id, name, priceCents, qty }) {
-      const existing = this.items.find(i => i.id === id);
-      if (existing) {
-        existing.qty += qty;
-      } else {
-        this.items.push({ id, name, priceCents, qty });
+      addItem({ id, name, priceCents, qty }) {
+        const existing = this.items.find(i => i.id === id);
+        if (existing) {
+          existing.qty += qty;
+        } else {
+          this.items.push({ id, name, priceCents, qty });
+        }
+        this.save();
+        this.showToast(`${name} added to cart ✅`);
+        console.log("Cart now:", this.items);
+      },
+
+      showToast(message) {
+        const toast = document.createElement('div');
+        toast.className = 'fixed bottom-6 right-6 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg z-50 animate-fade-in';
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 2500);
+      },
+
+      clear() {
+        this.items = [];
+        this.save();
+      },
+
+      getTotalCount() {
+        return this.items.reduce((sum, item) => sum + item.qty, 0);
+      },
+
+      getTotalPrice() {
+        return this.items.reduce((sum, item) => sum + item.priceCents * item.qty, 0) / 100;
       }
-      this.save();
-      this.showToast(`${name} added to cart ✅`);
-      console.log("Cart now:", this.items);
-    },
+    };
 
-    showToast(message) {
-      const toast = document.createElement('div');
-      toast.className = 'fixed bottom-6 right-6 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg z-50 animate-fade-in';
-      toast.textContent = message;
-      document.body.appendChild(toast);
-      setTimeout(() => toast.remove(), 2500);
-    },
-
-    clear() {
-      this.items = [];
-      this.save();
-    },
-
-    getTotalCount() {
-      return this.items.reduce((sum, item) => sum + item.qty, 0);
-    },
-
-    getTotalPrice() {
-      return this.items.reduce((sum, item) => sum + item.priceCents * item.qty, 0) / 100;
-    }
-  };
-
-  // 🧩 Hook up Add buttons
-  document.addEventListener('DOMContentLoaded', () => {
-    document.querySelectorAll('[data-add-to-cart]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const { id, name, price } = btn.dataset;
-        const priceCents = Math.round(parseFloat(price) * 100);
-        Cart.addItem({ id, name, priceCents, qty: 1 });
+    // Hook up Add buttons
+    document.addEventListener('DOMContentLoaded', () => {
+      document.querySelectorAll('[data-add-to-cart]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const { id, name, price } = btn.dataset;
+          const priceCents = Math.round(parseFloat(price) * 100);
+          Cart.addItem({ id, name, priceCents, qty: 1 });
+        });
       });
     });
-  });
-</script>
-
+  </script>
 </body>
 </html>
