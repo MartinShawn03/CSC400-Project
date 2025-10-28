@@ -5,8 +5,11 @@ const mysql = require('mysql2');
 const { randomBytes } = require('crypto');
 const formidable = require('formidable');
 const bcrypt = require('bcrypt');
+const QRCode = require('qrcode');
 
 const baseDir = path.resolve(__dirname, '..');
+
+const PUBLIC_CUSTOMER_URL = 'http://136.113.3.49/Customer/customer_main.html';
 
 const connection_pool = mysql.createPool({
   host: '136.113.3.49',
@@ -722,6 +725,27 @@ if (req.method === 'POST' && req.url === '/api/orders/customer') {
   });
   return;
 }
+// ---------- QR: Static PNG for this restaurant’s customer_main ----------
+if (req.method === 'GET' && (reqPath === '/qr.png' || reqPath === '/qr')) {
+  QRCode.toBuffer(
+    PUBLIC_CUSTOMER_URL,
+    { type: 'png', width: 512, margin: 1, errorCorrectionLevel: 'M' },
+    (err, buffer) => {
+      if (err) {
+        console.error('QR gen error:', err);
+        res.writeHead(500, { 'Content-Type': 'text/plain' });
+        return res.end('QR generation error');
+      }
+      res.writeHead(200, {
+        'Content-Type': 'image/png',
+        'Cache-Control': 'public, max-age=31536000, immutable' // cache forever
+      });
+      res.end(buffer);
+    }
+  );
+  return;
+}
+
   // ---------- Static file handler ----------
   const filePath = path.join(baseDir, 'public_html', reqPath);
   const ext = path.extname(filePath).toLowerCase();
