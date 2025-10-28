@@ -9,15 +9,20 @@
 <body class="bg-gray-50 text-gray-800 font-sans min-h-screen flex flex-col">
 
   <!-- Header -->
-  <header class="bg-white border-b border-gray-200">
-    <div class="max-w-6xl mx-auto flex justify-between items-center p-4">
-      <h1 class="text-xl sm:text-2xl font-semibold">Checkout</h1>
-      <nav class="hidden sm:flex space-x-6 text-sm">
-        <a href="customer_main.html" class="hover:text-blue-600 transition">Home</a>
-        <a href="customer_cart.html" class="hover:text-blue-600 transition">Cart</a>
-      </nav>
+<header class="bg-white border-b border-gray-200">
+  <div class="max-w-6xl mx-auto flex justify-between items-center p-4">
+    <!-- Left side: logo/title -->
+    <div class="flex items-center gap-3">
+      <h1 class="text-xl sm:text-2xl font-semibold">Self Service Ordering</h1>
     </div>
-  </header>
+
+    <!-- Right side: navigation buttons -->
+    <nav class="flex items-center gap-2 ml-auto">
+      <a href="customer_main.html"
+         class="bg-gray-100 text-gray-800 px-3 py-1 rounded-md hover:bg-gray-200 transition">Home</a>
+    </nav>
+  </div>
+</header>
 
   <!-- Main -->
   <main class="flex-grow max-w-4xl mx-auto px-4 py-8">
@@ -72,85 +77,174 @@
     </div>
   </footer>
 
-  <!-- 🧠 Inline Cart Logic + Checkout -->
-  <script>
-    const Cart = {
-      items: JSON.parse(localStorage.getItem('cartItems')) || [],
-      getTotal() {
-        return this.items.reduce((sum, i) => sum + i.priceCents * i.qty, 0) / 100;
-      },
-      clear() {
-        this.items = [];
-        localStorage.removeItem('cartItems');
-      },
-    };
+<!-- Customer Session Management -->
+<script>
+const CustomerSession = {
+    // Check if user is logged in
+    isLoggedIn() {
+        return localStorage.getItem('customerLoggedIn') === 'true';
+    },
 
-    function renderOrder() {
-      const container = document.getElementById('orderItems');
-      const totalEl = document.getElementById('orderTotal');
-      container.innerHTML = '';
+    // Get customer data
+    getCustomer() {
+        const data = localStorage.getItem('customerData');
+        return data ? JSON.parse(data) : null;
+    },
 
-      if (!Cart.items.length) {
-        container.innerHTML = '<p class="text-gray-500 text-center py-4">Your cart is empty.</p>';
-        totalEl.textContent = '$0.00';
-        return;
-      }
+    // Set customer session after login
+    setSession(customerData) {
+        localStorage.setItem('customerLoggedIn', 'true');
+        localStorage.setItem('customerData', JSON.stringify(customerData));
+        localStorage.setItem('customerEmail', customerData.email);
+    },
 
-      Cart.items.forEach(item => {
-        const div = document.createElement('div');
-        div.className = 'py-3 flex justify-between';
-        div.innerHTML = `
-          <span>${item.name} × ${item.qty}</span>
-          <span>$${(item.priceCents * item.qty / 100).toFixed(2)}</span>
-        `;
-        container.appendChild(div);
-      });
+    // Clear session on logout
+    clearSession() {
+        localStorage.removeItem('customerLoggedIn');
+        localStorage.removeItem('customerData');
+        localStorage.removeItem('customerEmail');
 
-      totalEl.textContent = '$' + Cart.getTotal().toFixed(2);
-    }
+        // Also call server logout
+        fetch('/api/logout', { method: 'POST' });
+    },
 
-    document.addEventListener('DOMContentLoaded', renderOrder);
-
-    document.getElementById('placeOrderBtn').addEventListener('click', async () => {
-      const name = document.getElementById('custName').value.trim();
-      const email = document.getElementById('custEmail').value.trim();
-      const phone = document.getElementById('custPhone').value.trim();
-      const statusMsg = document.getElementById('statusMsg');
-
-      if (!name || !email || !Cart.items.length) {
-        statusMsg.textContent = '⚠️ Please fill out your details and ensure your cart is not empty.';
-        statusMsg.className = 'text-center text-sm mt-4 text-red-600';
-        return;
-      }
-
-      const orderData = {
-        customer: { name, email, phone },
-        items: Cart.items.map(i => ({ id: i.id, qty: i.qty })),
-        total: Cart.getTotal()
-      };
-
-      try {
-        const res = await fetch('/api/employee/createOrder', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(orderData)
-        });
-
-        const data = await res.json();
-        if (data.success) {
-          Cart.clear();
-          statusMsg.textContent = '✅ Order placed successfully! Thank you.';
-          statusMsg.className = 'text-center text-green-600 mt-4';
-          setTimeout(() => window.location.href = 'customer_main.html', 2000);
-        } else {
-          throw new Error(data.message);
+    // Auto-populate checkout form if logged in
+    populateCheckoutForm() {
+        if (this.isLoggedIn() && document.getElementById('custName')) {
+            const customer = this.getCustomer();
+            document.getElementById('custName').value = customer.name || '';
+            document.getElementById('custEmail').value = customer.email || '';
+            // Make email read-only if logged in
+            document.getElementById('custEmail').readOnly = true;
         }
-      } catch (err) {
-        statusMsg.textContent = '❌ Error placing order. Please try again.';
-        statusMsg.className = 'text-center text-red-600 mt-4';
-        console.error(err);
-      }
+    },
+
+    // Update navigation based on login status
+    updateNavigation() {
+        const loginBtn = document.querySelector('a[href="customer_login.html"]');
+        const ordersBtn = document.querySelector('a[href="customer_order.html"]');
+
+        if (loginBtn) {
+            if (this.isLoggedIn()) {
+                loginBtn.textContent = 'Logout';
+                loginBtn.href = '#';
+                loginBtn.onclick = (e) => {
+                    e.preventDefault();
+                    this.clearSession();
+                    window.location.href = 'customer_main.html';
+                };
+            } else {
+                loginBtn.textContent = 'Login';
+                loginBtn.href = 'customer_login.html';
+                loginBtn.onclick = null;
+            }
+        }
+    }
+};
+
+// Initialize session management on page load
+document.addEventListener('DOMContentLoaded', () => {
+    CustomerSession.updateNavigation();
+    CustomerSession.populateCheckoutForm();
+});
+</script>
+
+<!-- Checkout Logic -->
+<script>
+const Cart = {
+  items: JSON.parse(localStorage.getItem('cartItems')) || [],
+  getTotal() {
+    return this.items.reduce((sum, i) => sum + i.priceCents * i.qty, 0) / 100;
+  },
+  clear() {
+    this.items = [];
+    localStorage.removeItem('cartItems');
+  },
+};
+
+function renderOrder() {
+  const container = document.getElementById('orderItems');
+  const totalEl = document.getElementById('orderTotal');
+  container.innerHTML = '';
+
+  if (!Cart.items.length) {
+    container.innerHTML = '<p class="text-gray-500 text-center py-4">Your cart is empty.</p>';
+    totalEl.textContent = '$0.00';
+    return;
+  }
+
+  Cart.items.forEach(item => {
+    const div = document.createElement('div');
+    div.className = 'py-3 flex justify-between';
+    div.innerHTML = `
+      <span>${item.name} × ${item.qty}</span>
+      <span>$${(item.priceCents * item.qty / 100).toFixed(2)}</span>
+    `;
+    container.appendChild(div);
+  });
+
+  totalEl.textContent = '$' + Cart.getTotal().toFixed(2);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  renderOrder();
+  CustomerSession.populateCheckoutForm();
+});
+
+document.getElementById('placeOrderBtn').addEventListener('click', async () => {
+  const name = document.getElementById('custName').value.trim();
+  const email = document.getElementById('custEmail').value.trim();
+  const phone = document.getElementById('custPhone').value.trim();
+  const statusMsg = document.getElementById('statusMsg');
+
+  if (!name || !email || !Cart.items.length) {
+    statusMsg.textContent = '⚠️ Please fill out your details and ensure your cart is not empty.';
+    statusMsg.className = 'text-center text-sm mt-4 text-red-600';
+    return;
+  }
+
+  // If logged in, use session customer_id, otherwise null for guest
+  const customerData = CustomerSession.isLoggedIn() ? CustomerSession.getCustomer() : null;
+
+  const orderData = {
+    customer: {
+      name,
+      email,
+      phone,
+      customer_id: customerData ? customerData.id : null
+    },
+    items: Cart.items.map(i => ({ item_id: i.id, quantity: i.qty })),
+    total: Cart.getTotal()
+  };
+
+  try {
+    const res = await fetch('/api/checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(orderData)
     });
-  </script>
+
+    const data = await res.json();
+    if (data.success) {
+      Cart.clear();
+      statusMsg.textContent = '✅ Order placed successfully! Thank you.';
+      statusMsg.className = 'text-center text-green-600 mt-4';
+
+      // Store order confirmation for guest users
+      if (!CustomerSession.isLoggedIn()) {
+        localStorage.setItem('guestOrderEmail', email);
+      }
+
+      setTimeout(() => window.location.href = 'customer_main.html', 2000);
+    } else {
+      throw new Error(data.message);
+    }
+  } catch (err) {
+    statusMsg.textContent = '❌ Error placing order. Please try again.';
+    statusMsg.className = 'text-center text-red-600 mt-4';
+    console.error(err);
+  }
+});
+</script>
 </body>
 </html>

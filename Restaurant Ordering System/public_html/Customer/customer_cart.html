@@ -10,12 +10,24 @@
 <body class="bg-gray-50 text-gray-800 font-sans min-h-screen flex flex-col">
 
   <!-- Header -->
-  <header class="bg-white border-b border-gray-200">
-    <div class="max-w-6xl mx-auto flex justify-between items-center p-4">
-      <h1 class="text-xl sm:text-2xl font-semibold">Your Cart</h1>
-      <a href="customer_menu.html" class="text-sm text-blue-600 hover:underline">← Continue Shopping</a>
+<header class="bg-white border-b border-gray-200">
+  <div class="max-w-6xl mx-auto flex justify-between items-center p-4">
+    <!-- Left side: logo/title -->
+    <div class="flex items-center gap-3">
+      <h1 class="text-xl sm:text-2xl font-semibold">Self Service Ordering</h1>
     </div>
-  </header>
+
+    <!-- Right side: navigation buttons -->
+    <nav class="flex items-center gap-2 ml-auto">
+      <a href="customer_main.html"
+         class="bg-gray-100 text-gray-800 px-3 py-1 rounded-md hover:bg-gray-200 transition">Home</a>
+      <a href="customer_order.html"
+         class="bg-green-600 text-white px-3 py-1 rounded-md hover:bg-green-700 transition">My Orders</a>
+      <a href="customer_login.html"
+         class="bg-blue-100 text-gray-800 px-3 py-1 rounded-md hover:bg-blue-200 transition">Login</a>
+    </nav>
+  </div>
+</header>
 
   <!-- Main -->
   <main class="flex-grow max-w-4xl mx-auto p-4 sm:p-6">
@@ -39,80 +51,153 @@
     </div>
   </footer>
 
-  <!-- 🛒 Cart Logic -->
-  <script>
-    const Cart = {
-      items: JSON.parse(localStorage.getItem('cartItems')) || [],
+<!-- Customer Session Management -->
+<script>
+const CustomerSession = {
+    // Check if user is logged in
+    isLoggedIn() {
+        return localStorage.getItem('customerLoggedIn') === 'true';
+    },
 
-      save() {
+    // Get customer data
+    getCustomer() {
+        const data = localStorage.getItem('customerData');
+        return data ? JSON.parse(data) : null;
+    },
+
+    // Set customer session after login
+    setSession(customerData) {
+        localStorage.setItem('customerLoggedIn', 'true');
+        localStorage.setItem('customerData', JSON.stringify(customerData));
+        localStorage.setItem('customerEmail', customerData.email);
+    },
+
+    // Clear session on logout
+    clearSession() {
+        localStorage.removeItem('customerLoggedIn');
+        localStorage.removeItem('customerData');
+        localStorage.removeItem('customerEmail');
+
+        // Also call server logout
+        fetch('/api/logout', { method: 'POST' });
+    },
+
+    // Auto-populate checkout form if logged in
+    populateCheckoutForm() {
+        if (this.isLoggedIn() && document.getElementById('custName')) {
+            const customer = this.getCustomer();
+            document.getElementById('custName').value = customer.name || '';
+            document.getElementById('custEmail').value = customer.email || '';
+            // Make email read-only if logged in
+            document.getElementById('custEmail').readOnly = true;
+        }
+    },
+
+    // Update navigation based on login status
+    updateNavigation() {
+        const loginBtn = document.querySelector('a[href="customer_login.html"]');
+        const ordersBtn = document.querySelector('a[href="customer_order.html"]');
+
+        if (loginBtn) {
+            if (this.isLoggedIn()) {
+                loginBtn.textContent = 'Logout';
+                loginBtn.href = '#';
+                loginBtn.onclick = (e) => {
+                    e.preventDefault();
+                    this.clearSession();
+                    window.location.href = 'customer_main.html';
+                };
+            } else {
+                loginBtn.textContent = 'Login';
+                loginBtn.href = 'customer_login.html';
+                loginBtn.onclick = null;
+            }
+        }
+    }
+};
+
+// Initialize session management on page load
+document.addEventListener('DOMContentLoaded', () => {
+    CustomerSession.updateNavigation();
+});
+</script>
+
+<!-- Cart Logic -->
+<script>
+const Cart = {
+    items: JSON.parse(localStorage.getItem('cartItems')) || [],
+
+    save() {
         localStorage.setItem('cartItems', JSON.stringify(this.items));
-      },
+    },
 
-      removeItem(id) {
+    removeItem(id) {
         this.items = this.items.filter(i => i.id !== id);
         this.save();
         renderCart();
-      },
+    },
 
-      updateQty(id, newQty) {
+    updateQty(id, newQty) {
         const item = this.items.find(i => i.id === id);
         if (item) {
-          item.qty = Math.max(1, newQty); // Minimum 1
-          this.save();
-          renderCart();
+            item.qty = Math.max(1, newQty); // Minimum 1
+            this.save();
+            renderCart();
         }
-      },
+    },
 
-      getTotalPrice() {
+    getTotalPrice() {
         return this.items.reduce((sum, item) => sum + item.priceCents * item.qty, 0) / 100;
-      },
+    },
 
-      clear() {
+    clear() {
         this.items = [];
         this.save();
         renderCart();
-      }
-    };
+    }
+};
 
-    // 🧩 Render Cart
-    function renderCart() {
-      const container = document.getElementById('cartContainer');
-      const summary = document.getElementById('cartSummary');
-      const totalEl = document.getElementById('totalPrice');
+// Render Cart
+function renderCart() {
+    const container = document.getElementById('cartContainer');
+    const summary = document.getElementById('cartSummary');
+    const totalEl = document.getElementById('totalPrice');
 
-      if (Cart.items.length === 0) {
+    if (Cart.items.length === 0) {
         container.innerHTML = '<p class="text-center text-gray-500">Your cart is empty.</p>';
         summary.classList.add('hidden');
         return;
-      }
+    }
 
-      // Show cart summary
-      summary.classList.remove('hidden');
-      totalEl.textContent = `$${Cart.getTotalPrice().toFixed(2)}`;
+    // Show cart summary
+    summary.classList.remove('hidden');
+    totalEl.textContent = `$${Cart.getTotalPrice().toFixed(2)}`;
 
-      // Build cart items
-      container.innerHTML = Cart.items.map(item => `
+    // Build cart items
+    container.innerHTML = Cart.items.map(item => `
         <div class="bg-white shadow border border-gray-200 rounded-lg p-4 flex justify-between items-center">
-          <div>
-            <h3 class="font-semibold text-gray-800">${item.name}</h3>
-            <p class="text-sm text-gray-600 mt-1">$${(item.priceCents / 100).toFixed(2)} each</p>
-          </div>
+            <div>
+                <h3 class="font-semibold text-gray-800">${item.name}</h3>
+                <p class="text-sm text-gray-600 mt-1">$${(item.priceCents / 100).toFixed(2)} each</p>
+            </div>
 
-          <div class="flex items-center gap-3">
-            <button class="bg-gray-200 px-2 rounded text-lg" onclick="Cart.updateQty('${item.id}', ${item.qty - 1})">−</button>
-            <span class="font-medium">${item.qty}</span>
-            <button class="bg-gray-200 px-2 rounded text-lg" onclick="Cart.updateQty('${item.id}', ${item.qty + 1})">+</button>
-            <button class="text-red-500 hover:text-red-700 ml-3" onclick="Cart.removeItem('${item.id}')">🗑️</button>
-          </div>
+            <div class="flex items-center gap-3">
+                <button class="bg-gray-200 px-2 rounded text-lg" onclick="Cart.updateQty('${item.id}', ${item.qty - 1})">−</button>
+                <span class="font-medium">${item.qty}</span>
+                <button class="bg-gray-200 px-2 rounded text-lg" onclick="Cart.updateQty('${item.id}', ${item.qty + 1})">+</button>
+                <button class="text-red-500 hover:text-red-700 ml-3" onclick="Cart.removeItem('${item.id}')">🗑️</button>
+            </div>
         </div>
-      `).join('');
-    }
+    `).join('');
+}
 
-    function goToCheckout() {
-      window.location.href = 'customer_checkout.html';
-    }
+function goToCheckout() {
+    window.location.href = 'customer_checkout.html';
+}
 
-    document.addEventListener('DOMContentLoaded', renderCart);
-  </script>
+// Initialize cart on page load
+document.addEventListener('DOMContentLoaded', renderCart);
+</script>
+
 </body>
 </html>

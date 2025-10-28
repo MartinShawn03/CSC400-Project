@@ -1,11 +1,186 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My Orders – Self Service Ordering</title>
+  <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
-    
+<body class="bg-gray-50 text-gray-800 font-sans min-h-screen flex flex-col">
+
+<header class="bg-white border-b border-gray-200">
+  <div class="max-w-6xl mx-auto flex justify-between items-center p-4">
+    <!-- Left side: logo/title -->
+    <div class="flex items-center gap-3">
+      <h1 class="text-xl sm:text-2xl font-semibold">Self Service Ordering</h1>
+    </div>
+
+    <!-- Right side: navigation buttons -->
+    <nav class="flex items-center gap-2 ml-auto">
+      <a href="customer_main.html"
+         class="bg-gray-100 text-gray-800 px-3 py-1 rounded-md hover:bg-gray-200 transition">Home</a>
+      <a href="customer_login.html"
+         class="bg-blue-100 text-gray-800 px-3 py-1 rounded-md hover:bg-blue-200 transition">Login</a>
+    </nav>
+  </div>
+</header>
+
+  <main class="flex-grow max-w-4xl mx-auto p-4 sm:p-6">
+    <section id="ordersContainer" class="space-y-4">
+      <p class="text-center text-gray-500">Loading your orders...</p>
+    </section>
+  </main>
+
+  <footer class="bg-white border-t border-gray-200 mt-10">
+    <div class="max-w-6xl mx-auto p-4 text-center text-xs text-gray-500">
+      &copy; 2025 Self Service Ordering. All rights reserved.
+    </div>
+  </footer>
+
+<!-- Customer Session Management -->
+<script>
+const CustomerSession = {
+    // Check if user is logged in
+    isLoggedIn() {
+        return localStorage.getItem('customerLoggedIn') === 'true';
+    },
+
+    // Get customer data
+    getCustomer() {
+        const data = localStorage.getItem('customerData');
+        return data ? JSON.parse(data) : null;
+    },
+
+    // Set customer session after login
+    setSession(customerData) {
+        localStorage.setItem('customerLoggedIn', 'true');
+        localStorage.setItem('customerData', JSON.stringify(customerData));
+        localStorage.setItem('customerEmail', customerData.email);
+    },
+
+    // Clear session on logout
+    clearSession() {
+        localStorage.removeItem('customerLoggedIn');
+        localStorage.removeItem('customerData');
+        localStorage.removeItem('customerEmail');
+
+        // Also call server logout
+        fetch('/api/logout', { method: 'POST' });
+    },
+
+    // Auto-populate checkout form if logged in
+    populateCheckoutForm() {
+        if (this.isLoggedIn() && document.getElementById('custName')) {
+            const customer = this.getCustomer();
+            document.getElementById('custName').value = customer.name || '';
+            document.getElementById('custEmail').value = customer.email || '';
+            // Make email read-only if logged in
+            document.getElementById('custEmail').readOnly = true;
+        }
+    },
+
+    // Update navigation based on login status
+    updateNavigation() {
+        const loginBtn = document.querySelector('a[href="customer_login.html"]');
+        const ordersBtn = document.querySelector('a[href="customer_order.html"]');
+
+        if (loginBtn) {
+            if (this.isLoggedIn()) {
+                loginBtn.textContent = 'Logout';
+                loginBtn.href = '#';
+                loginBtn.onclick = (e) => {
+                    e.preventDefault();
+                    this.clearSession();
+                    window.location.href = 'customer_main.html';
+                };
+            } else {
+                loginBtn.textContent = 'Login';
+                loginBtn.href = 'customer_login.html';
+                loginBtn.onclick = null;
+            }
+        }
+    }
+};
+
+// Initialize session management on page load
+document.addEventListener('DOMContentLoaded', () => {
+    CustomerSession.updateNavigation();
+});
+</script>
+
+<!-- Orders Logic -->
+<script>
+async function loadOrders() {
+  const container = document.getElementById('ordersContainer');
+  container.innerHTML = '<p class="text-center text-gray-500">Loading your orders...</p>';
+
+  try {
+    let email;
+
+    if (CustomerSession.isLoggedIn()) {
+      // Logged in user - use session
+      const customer = CustomerSession.getCustomer();
+      email = customer.email;
+    } else {
+      // Guest user - try to get from localStorage
+      email = localStorage.getItem('guestOrderEmail');
+      if (!email) {
+        container.innerHTML = `
+          <div class="text-center">
+            <p class="text-gray-500 mb-4">No order history found.</p>
+            <p class="text-sm text-gray-400">Login to see your orders or place an order as a guest.</p>
+          </div>
+        `;
+        return;
+      }
+    }
+
+    const res = await fetch('/api/orders/customer', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    });
+
+    const data = await res.json();
+    if (!data.success) throw new Error(data.message);
+
+    if (!data.orders.length) {
+      container.innerHTML = '<p class="text-center text-gray-500">You have no orders yet.</p>';
+      return;
+    }
+
+    container.innerHTML = data.orders.map(o => `
+      <div class="bg-white shadow rounded-lg border border-gray-200 p-4 flex justify-between items-center">
+        <div>
+          <h3 class="font-semibold text-gray-800">#${o.order_id} – ${o.item_name} × ${o.quantity}</h3>
+          <p class="text-sm text-gray-600">Placed: ${new Date(o.order_time).toLocaleString()}</p>
+        </div>
+        <span class="px-3 py-1 rounded-full text-sm font-medium ${
+          o.status.toLowerCase() === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+          'bg-green-100 text-green-800'
+        }">${o.status}</span>
+      </div>
+    `).join('');
+
+  } catch (err) {
+    console.error(err);
+    container.innerHTML = `
+      <div class="text-center text-red-500">
+        <p>Failed to load orders.</p>
+        <p class="text-sm">${err.message}</p>
+      </div>
+    `;
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  CustomerSession.updateNavigation();
+  loadOrders();
+});
+
+// Optional: auto-refresh every 10 seconds
+setInterval(loadOrders, 10000);
+</script>
+
 </body>
 </html>
