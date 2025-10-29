@@ -584,7 +584,7 @@ if (req.method === 'POST' && req.url === '/api/logout') {
   // ---------- EMPLOYEE: Fetch all pending orders ----------
   if (req.method === 'GET' && req.url === '/api/orders/pending') {
     const sql = `
-      SELECT order_id, customer_id, item_id, quanity AS quantity, status, order_time
+      SELECT order_id, customer_id, item_id, quantity, status, order_time
       FROM Orders
       WHERE status = 'Pending'
       ORDER BY order_time DESC
@@ -645,7 +645,7 @@ if (req.method === 'POST' && req.url === '/api/checkout') {
             // Insert all items into Orders table
             const values = items.map(i => [customerId, i.item_id, i.quantity, 'Pending']);
             connection_pool.query(
-              'INSERT INTO Orders (customer_id, item_id, quanity, status) VALUES ?',
+              'INSERT INTO Orders (customer_id, item_id, quantity, status) VALUES ?',
               [values],
               (err2) => {
                 if (err2) {
@@ -701,7 +701,7 @@ if (req.method === 'POST' && req.url === '/api/orders/customer') {
       }
 
       const sql = `
-        SELECT o.order_id, m.item_name, o.quanity AS quantity, o.status, o.order_time
+        SELECT o.order_id, m.item_name, o.quantity AS quantity, o.status, o.order_time
         FROM Orders o
         JOIN Menu m ON o.item_id = m.item_id
         JOIN Customers c ON o.customer_id = c.customer_id
