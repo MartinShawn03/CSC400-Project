@@ -5,16 +5,21 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Checkout – Self Service Ordering</title>
   <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- STRIPE.JS -->
+  <script src="https://js.stripe.com/v3/"></script>
 </head>
 <body class="bg-gray-50 text-gray-800 font-sans min-h-screen flex flex-col">
 
   <!-- Header -->
   <header class="bg-white border-b border-gray-200">
     <div class="max-w-6xl mx-auto flex justify-between items-center p-4">
-      <h1 class="text-xl sm:text-2xl font-semibold">Checkout</h1>
-      <nav class="hidden sm:flex space-x-6 text-sm">
-        <a href="customer_main.html" class="hover:text-blue-600 transition">Home</a>
-        <a href="customer_cart.html" class="hover:text-blue-600 transition">Cart</a>
+      <div class="flex items-center gap-3">
+        <h1 class="text-xl sm:text-2xl font-semibold">Self Service Ordering</h1>
+      </div>
+      <nav class="flex items-center gap-2 ml-auto">
+        <a href="customer_main.html"
+           class="bg-gray-100 text-gray-800 px-3 py-1 rounded-md hover:bg-gray-200 transition">Home</a>
       </nav>
     </div>
   </header>
@@ -55,10 +60,14 @@
     <!-- Payment Section -->
     <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
       <h2 class="text-lg font-semibold mb-4">Payment</h2>
-      <p class="text-sm text-gray-600 mb-4">Payment processing is currently handled securely by Stripe (in progress).</p>
+      <p class="text-sm text-gray-600 mb-4">
+        Secure payment powered by <strong>Stripe</strong>. You will be redirected to complete payment.
+      </p>
       <button id="placeOrderBtn"
-        class="w-full bg-blue-600 text-white py-3 rounded-md text-lg font-medium hover:bg-blue-700 transition">
-        Place Order
+        class="w-full bg-blue-600 text-white py-3 rounded-md text-lg font-medium hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+        disabled>
+        <span id="btnText">Place Order</span>
+        <span id="btnSpinner" class="hidden">Processing...</span>
       </button>
     </section>
 
@@ -68,142 +77,186 @@
   <!-- Footer -->
   <footer class="bg-white border-t border-gray-200 mt-10">
     <div class="max-w-6xl mx-auto p-4 text-center text-xs text-gray-500">
-      &copy; 2025 Self Service Ordering. All rights reserved.
+      © 2025 Self Service Ordering. All rights reserved.
     </div>
   </footer>
 
-  <!-- 🧠 Inline Cart Logic + Checkout -->
-  <script src="https://js.stripe.com/v3/"></script>
-  <script>
-    const Cart = {
-      items: JSON.parse(localStorage.getItem('cartItems')) || [],
-      getTotal() {
-        return this.items.reduce((sum, i) => sum + i.priceCents * i.qty, 0) / 100;
-      },
-      clear() {
-        this.items = [];
-        localStorage.removeItem('cartItems');
-      },
-    };
+<!-- Customer Session Management -->
+<script>
+const CustomerSession = {
+    isLoggedIn() {
+        return localStorage.getItem('customerLoggedIn') === 'true';
+    },
+    getCustomer() {
+        const data = localStorage.getItem('customerData');
+        return data ? JSON.parse(data) : null;
+    },
+    setSession(customerData) {
+        localStorage.setItem('customerLoggedIn', 'true');
+        localStorage.setItem('customerData', JSON.stringify(customerData));
+        localStorage.setItem('customerEmail', customerData.email);
+    },
+    clearSession() {
+        localStorage.removeItem('customerLoggedIn');
+        localStorage.removeItem('customerData');
+        localStorage.removeItem('customerEmail');
+        fetch('/api/logout', { method: 'POST' }).catch(() => {});
+    },
+    populateCheckoutForm() {
+        if (this.isLoggedIn() && document.getElementById('custName')) {
+            const customer = this.getCustomer();
+            document.getElementById('custName').value = customer.name || '';
+            document.getElementById('custEmail').value = customer.email || '';
+            document.getElementById('custEmail').readOnly = true;
+        }
+    },
+    updateNavigation() {
+        const loginBtn = document.querySelector('a[href="customer_login.html"]');
+        if (loginBtn) {
+            if (this.isLoggedIn()) {
+                loginBtn.textContent = 'Logout';
+                loginBtn.href = '#';
+                loginBtn.onclick = (e) => {
+                    e.preventDefault();
+                    this.clearSession();
+                    window.location.href = 'customer_main.html';
+                };
+            } else {
+                loginBtn.textContent = 'Login';
+                loginBtn.href = 'customer_login.html';
+                loginBtn.onclick = null;
+            }
+        }
+    }
+};
+</script>
 
-    function renderOrder() {
-      const container = document.getElementById('orderItems');
-      const totalEl = document.getElementById('orderTotal');
-      container.innerHTML = '';
+<!-- Cart & Stripe Checkout Logic -->
+<script>
+const STRIPE_PUBLISHABLE_KEY = 'pk_test_51SFy9hAEv5kiH6la3apUe0ronAHocibuAjVdd9r1W7zAFYJpi4F90BHK5VCdMqyxIIaqaifHltWO1ZAygdYTzwCp00S0q23MLJ';
 
-      if (!Cart.items.length) {
-        container.innerHTML = '<p class="text-gray-500 text-center py-4">Your cart is empty.</p>';
-        totalEl.textContent = '$0.00';
-        return;
-      }
+const stripe = Stripe(STRIPE_PUBLISHABLE_KEY);
 
-      Cart.items.forEach(item => {
-        const div = document.createElement('div');
-        div.className = 'py-3 flex justify-between';
-        div.innerHTML = `
-          <span>${item.name} × ${item.qty}</span>
-          <span>$${(item.priceCents * item.qty / 100).toFixed(2)}</span>
-        `;
-        container.appendChild(div);
-      });
+const Cart = {
+  items: JSON.parse(localStorage.getItem('cartItems')) || [],
+  getTotal() {
+    return this.items.reduce((sum, i) => sum + i.priceCents * i.qty, 0) / 100;
+  },
+  clear() {
+    this.items = [];
+    localStorage.removeItem('cartItems');
+  },
+};
 
-      totalEl.textContent = '$' + Cart.getTotal().toFixed(2);
+function renderOrder() {
+  const container = document.getElementById('orderItems');
+  const totalEl = document.getElementById('orderTotal');
+  container.innerHTML = '';
+
+  if (!Cart.items.length) {
+    container.innerHTML = '<p class="text-gray-500 text-center py-4">Your cart is empty.</p>';
+    totalEl.textContent = '$0.00';
+    document.getElementById('placeOrderBtn').disabled = true;
+    return;
+  }
+
+  Cart.items.forEach(item => {
+    const div = document.createElement('div');
+    div.className = 'py-3 flex justify-between';
+    div.innerHTML = `
+      <span>${item.name} × ${item.qty}</span>
+      <span>$${(item.priceCents * item.qty / 100).toFixed(2)}</span>
+    `;
+    container.appendChild(div);
+  });
+
+  totalEl.textContent = '$' + Cart.getTotal().toFixed(2);
+  document.getElementById('placeOrderBtn').disabled = false;
+}
+
+function showStatus(msg, isError = false) {
+  const el = document.getElementById('statusMsg');
+  el.textContent = msg;
+  el.className = `text-center text-sm mt-4 ${isError ? 'text-red-600' : 'text-green-600'}`;
+}
+
+function setButtonLoading(loading) {
+  const btn = document.getElementById('placeOrderBtn');
+  const text = document.getElementById('btnText');
+  const spinner = document.getElementById('btnSpinner');
+  btn.disabled = loading;
+  text.classList.toggle('hidden', loading);
+  spinner.classList.toggle('hidden', !loading);
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', () => {
+  CustomerSession.updateNavigation();
+  CustomerSession.populateCheckoutForm();
+  renderOrder();
+});
+
+// Place Order → Stripe Checkout
+document.getElementById('placeOrderBtn').addEventListener('click', async () => {
+  const name = document.getElementById('custName').value.trim();
+  const email = document.getElementById('custEmail').value.trim();
+  const phone = document.getElementById('custPhone').value.trim();
+
+  if (!name || !email || !Cart.items.length) {
+    showStatus('Please fill all required fields and ensure cart is not empty.', true);
+    return;
+  }
+
+  setButtonLoading(true);
+  showStatus('Creating secure checkout session...');
+
+  const customerData = CustomerSession.isLoggedIn() ? CustomerSession.getCustomer() : null;
+
+  const payload = {
+    customer: { name, email, phone },
+    items: Cart.items.map(i => ({ item_id: i.id, quantity: i.qty }))
+  };
+
+  try {
+    const res = await fetch('/api/checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await res.json();
+
+    if (!data.success || !data.sessionId) {
+      throw new Error(data.message || 'Failed to create checkout session');
     }
 
-    document.addEventListener('DOMContentLoaded', renderOrder);
-    renderOrder();
-    const publicKey = await getStripePublicKey();
-    const stripe = Stripe(publicKey);
-    const elements = stripe.elements();
-    const cardElement = elements.create('card');
-    cardElement.mount('#payment-element')
+    // Redirect to Stripe Checkout
+    const { error } = await stripe.redirectToCheckout({ sessionId: data.sessionId });
 
-    document.getElementById('placeOrderBtn').addEventListener('click', async () => {
-      const name = document.getElementById('custName').value.trim();
-      const email = document.getElementById('custEmail').value.trim();
-      const phone = document.getElementById('custPhone').value.trim();
-      const statusMsg = document.getElementById('statusMsg');
+    if (error) {
+      throw error;
+    }
 
-      if (!name || !email || !Cart.items.length) {
-        statusMsg.textContent = '⚠️ Please fill out your details and ensure your cart is not empty.';
-        statusMsg.className = 'text-center text-sm mt-4 text-red-600';
-        return;
-      }
+  } catch (err) {
+    console.error('Checkout error:', err);
+    showStatus(err.message || 'Payment failed. Please try again.', true);
+    setButtonLoading(false);
+  }
+});
 
-      const orderData = {
-        customer: { name, email, phone },
-        items: Cart.items.map(i => ({ id: i.id, qty: i.qty })),
-        total: Cart.getTotal()
-      };
+// Optional: Handle return from Stripe
+const urlParams = new URLSearchParams(window.location.search);
+if (urlParams.get('session_id')) {
+  showStatus('Payment successful! Your order is being processed.', false);
+  Cart.clear();
+  renderOrder();
+  setTimeout(() => {
+    window.location.href = 'customer_main.html';
+  }, 3000);
+} else if (urlParams.get('canceled')) {
+  showStatus('Payment canceled. You can try again.', true);
+}
+</script>
 
-      try {
-        const res = await fetch('/api/employee/createOrder', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(orderData)
-        });
-
-        const data = await res.json();
-        if (data.success) {
-          Cart.clear();
-          statusMsg.textContent = '✅ Order placed successfully! Thank you.';
-          statusMsg.className = 'text-center text-green-600 mt-4';
-          setTimeout(() => window.location.href = 'customer_main.html', 2000);
-        } else {
-          throw new Error(data.message);
-        }
-      } catch (err) {
-        statusMsg.textContent = '❌ Error placing order. Please try again.';
-        statusMsg.className = 'text-center text-red-600 mt-4';
-        console.error(err);
-      }
-    });const orderRes = await fetch('/api/employee/createOrder', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(orderData)
-        });
-
-        const orderDataResp = await orderRes.json();
-        if (!orderDataResp.success) throw new Error(orderDataResp.message);
-
-        
-        const paymentRes = await fetch('/create-payment-intent', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ orderId: orderDataResp.order_id }) 
-        });
-
-        const paymentData = await paymentRes.json();
-        if (!paymentData.success) throw new Error(paymentData.message);
-
-        // Confirm payment with Stripe
-        const { error, paymentIntent } = await stripe.confirmCardPayment(paymentData.clientSecret, {
-          payment_method: { card: cardElement }
-        });
-
-        if (error) {
-          statusMsg.textContent = `❌ Payment failed: ${error.message}`;
-          statusMsg.className = 'text-center text-sm mt-4 text-red-600';
-        } else if (paymentIntent.status === 'succeeded') {
-          // Payment succeeded, update order status or clear cart
-          Cart.clear();
-          statusMsg.textContent = '✅ Order placed successfully! Thank you.';
-          statusMsg.className = 'text-center text-green-600 mt-4';
-          setTimeout(() => window.location.href = 'customer_main.html', 2000);
-
-          // Update order status on server 
-          await fetch('/api/employee/createOrder', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ orderId: orderDataResp.order_id, status: 'Paid' })
-          });
-        }
-      } catch (err) {
-        statusMsg.textContent = '❌ Error placing order. Please try again.';
-        statusMsg.className = 'text-center text-red-600 mt-4';
-        console.error(err);
-      }
-    });
-  </script>
 </body>
 </html>

@@ -1,1 +1,20 @@
+# Node modules
+node_modules/
+js/node_modules/
+
+# Package lock
+package-lock.json
+js/package-lock.json
+
+# Environment variables (secrets!)
 .env
+js/.env
+
+# Backups & junk
+*-backup/
+.DS_Store
+*.log
+
+# IDE
+.vscode/
+.idea/

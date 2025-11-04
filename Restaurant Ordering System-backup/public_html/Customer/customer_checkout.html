@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Checkout – Self Service Ordering</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 text-gray-800 font-sans min-h-screen flex flex-col">
+
+  <!-- Header -->
+  <header class="bg-white border-b border-gray-200">
+    <div class="max-w-6xl mx-auto flex justify-between items-center p-4">
+      <h1 class="text-xl sm:text-2xl font-semibold">Checkout</h1>
+      <nav class="hidden sm:flex space-x-6 text-sm">
+        <a href="customer_main.html" class="hover:text-blue-600 transition">Home</a>
+        <a href="customer_cart.html" class="hover:text-blue-600 transition">Cart</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Main -->
+  <main class="flex-grow max-w-4xl mx-auto px-4 py-8">
+    <!-- Order Summary -->
+    <section id="orderSummary" class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+      <h2 class="text-lg font-semibold mb-4">Your Order</h2>
+      <div id="orderItems" class="divide-y divide-gray-100">
+        <p class="text-gray-500 text-center py-4">Loading your cart...</p>
+      </div>
+      <div class="flex justify-between items-center mt-4 text-lg font-semibold">
+        <span>Total:</span>
+        <span id="orderTotal">$0.00</span>
+      </div>
+    </section>
+
+    <!-- Customer Info -->
+    <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+      <h2 class="text-lg font-semibold mb-4">Customer Information</h2>
+      <form id="checkoutForm" class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Full Name</label>
+          <input type="text" id="custName" class="mt-1 w-full border rounded-md p-2" placeholder="John Doe" required>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Email Address</label>
+          <input type="email" id="custEmail" class="mt-1 w-full border rounded-md p-2" placeholder="john@example.com" required>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Phone Number (optional)</label>
+          <input type="tel" id="custPhone" class="mt-1 w-full border rounded-md p-2" placeholder="(555) 123-4567">
+        </div>
+      </form>
+    </section>
+
+    <!-- Payment Section -->
+    <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+      <h2 class="text-lg font-semibold mb-4">Payment</h2>
+      <p class="text-sm text-gray-600 mb-4">Payment processing is currently handled securely by Stripe (in progress).</p>
+      <button id="placeOrderBtn"
+        class="w-full bg-blue-600 text-white py-3 rounded-md text-lg font-medium hover:bg-blue-700 transition">
+        Place Order
+      </button>
+    </section>
+
+    <p id="statusMsg" class="text-center text-sm mt-4 text-gray-600"></p>
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-white border-t border-gray-200 mt-10">
+    <div class="max-w-6xl mx-auto p-4 text-center text-xs text-gray-500">
+      &copy; 2025 Self Service Ordering. All rights reserved.
+    </div>
+  </footer>
+
+  <!-- 🧠 Inline Cart Logic + Checkout -->
+  <script src="https://js.stripe.com/v3/"></script>
+  <script>
+    const Cart = {
+      items: JSON.parse(localStorage.getItem('cartItems')) || [],
+      getTotal() {
+        return this.items.reduce((sum, i) => sum + i.priceCents * i.qty, 0) / 100;
+      },
+      clear() {
+        this.items = [];
+        localStorage.removeItem('cartItems');
+      },
+    };
+
+    function renderOrder() {
+      const container = document.getElementById('orderItems');
+      const totalEl = document.getElementById('orderTotal');
+      container.innerHTML = '';
+
+      if (!Cart.items.length) {
+        container.innerHTML = '<p class="text-gray-500 text-center py-4">Your cart is empty.</p>';
+        totalEl.textContent = '$0.00';
+        return;
+      }
+
+      Cart.items.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'py-3 flex justify-between';
+        div.innerHTML = `
+          <span>${item.name} × ${item.qty}</span>
+          <span>$${(item.priceCents * item.qty / 100).toFixed(2)}</span>
+        `;
+        container.appendChild(div);
+      });
+
+      totalEl.textContent = '$' + Cart.getTotal().toFixed(2);
+    }
+
+    document.addEventListener('DOMContentLoaded', renderOrder);
+    renderOrder();
+    const publicKey = await getStripePublicKey();
+    const stripe = Stripe(publicKey);
+    const elements = stripe.elements();
+    const cardElement = elements.create('card');
+    cardElement.mount('#payment-element')
+
+    document.getElementById('placeOrderBtn').addEventListener('click', async () => {
+      const name = document.getElementById('custName').value.trim();
+      const email = document.getElementById('custEmail').value.trim();
+      const phone = document.getElementById('custPhone').value.trim();
+      const statusMsg = document.getElementById('statusMsg');
+
+      if (!name || !email || !Cart.items.length) {
+        statusMsg.textContent = '⚠️ Please fill out your details and ensure your cart is not empty.';
+        statusMsg.className = 'text-center text-sm mt-4 text-red-600';
+        return;
+      }
+
+      const orderData = {
+        customer: { name, email, phone },
+        items: Cart.items.map(i => ({ id: i.id, qty: i.qty })),
+        total: Cart.getTotal()
+      };
+
+      try {
+        const res = await fetch('/api/employee/createOrder', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(orderData)
+        });
+
+        const data = await res.json();
+        if (data.success) {
+          Cart.clear();
+          statusMsg.textContent = '✅ Order placed successfully! Thank you.';
+          statusMsg.className = 'text-center text-green-600 mt-4';
+          setTimeout(() => window.location.href = 'customer_main.html', 2000);
+        } else {
+          throw new Error(data.message);
+        }
+      } catch (err) {
+        statusMsg.textContent = '❌ Error placing order. Please try again.';
+        statusMsg.className = 'text-center text-red-600 mt-4';
+        console.error(err);
+      }
+    });const orderRes = await fetch('/api/employee/createOrder', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(orderData)
+        });
+
+        const orderDataResp = await orderRes.json();
+        if (!orderDataResp.success) throw new Error(orderDataResp.message);
+
+        
+        const paymentRes = await fetch('/create-payment-intent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderId: orderDataResp.order_id }) 
+        });
+
+        const paymentData = await paymentRes.json();
+        if (!paymentData.success) throw new Error(paymentData.message);
+
+        // Confirm payment with Stripe
+        const { error, paymentIntent } = await stripe.confirmCardPayment(paymentData.clientSecret, {
+          payment_method: { card: cardElement }
+        });
+
+        if (error) {
+          statusMsg.textContent = `❌ Payment failed: ${error.message}`;
+          statusMsg.className = 'text-center text-sm mt-4 text-red-600';
+        } else if (paymentIntent.status === 'succeeded') {
+          // Payment succeeded, update order status or clear cart
+          Cart.clear();
+          statusMsg.textContent = '✅ Order placed successfully! Thank you.';
+          statusMsg.className = 'text-center text-green-600 mt-4';
+          setTimeout(() => window.location.href = 'customer_main.html', 2000);
+
+          // Update order status on server 
+          await fetch('/api/employee/createOrder', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ orderId: orderDataResp.order_id, status: 'Paid' })
+          });
+        }
+      } catch (err) {
+        statusMsg.textContent = '❌ Error placing order. Please try again.';
+        statusMsg.className = 'text-center text-red-600 mt-4';
+        console.error(err);
+      }
+    });
+  </script>
+</body>
+</html>

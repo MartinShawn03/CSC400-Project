@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Employee Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 font-sans">
+  <header class="bg-white shadow p-4 flex justify-between items-center">
+    <h1 class="text-2xl font-bold text-gray-800">Employee Dashboard</h1>
+    <button id="logoutBtn" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600">Logout</button>
+  </header>
+
+  <main class="p-6 max-w-4xl mx-auto text-center">
+    <h2 class="text-3xl font-bold mb-4 text-gray-800">Manage Our Restaurant</h2>
+    <p class="text-gray-600 mb-6">Access orders and menu options below.</p>
+
+    <div class="space-x-4">
+      <a href="employee_menu.html" class="bg-blue-600 text-white px-6 py-3 rounded hover:bg-blue-700">View Menu</a>
+      <a href="employee_order.html" class="bg-green-600 text-white px-6 py-3 rounded hover:bg-green-700">View Orders</a>
+    </div>
+  </main>
+
+  <script>
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      await fetch('/Employee/logout', { method: 'POST' });
+      window.location.href = '/Employee/employee_login.html';
+    });
+  </script>
+</body>
+</html>

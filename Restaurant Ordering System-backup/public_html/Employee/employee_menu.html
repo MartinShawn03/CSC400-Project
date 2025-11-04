@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Employee Menu - Self Service Ordering</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 font-sans">
+  
+  <!-- Header -->
+  <header class="bg-white shadow p-4 flex justify-between items-center">
+    <h1 class="text-2xl font-bold text-gray-800">Employee Menu</h1>
+    <nav class="flex gap-3">
+      <a href="employee_main.html" class="text-blue-600 hover:underline">Home</a>
+      <a href="employee_order.html" class="text-blue-600 hover:underline">View Orders</a>
+      <a href="employee_login.html" class="text-blue-600 hover:underline">Logout</a>
+    </nav>
+  </header>
+  
+  <!-- Main Section -->
+  <main class="p-6 max-w-6xl mx-auto text-center">
+    <h2 class="text-xl font-semibold text-gray-700 mb-6">Available Menu Items</h2>
+
+    <!-- Menu Grid -->
+    <section id="menuGrid" class="grid gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4"></section>
+
+    <!-- Toast -->
+    <div id="toast" class="hidden fixed bottom-6 right-6 z-50"></div>
+  </main>
+
+  <footer class="bg-white border-t border-gray-200 text-center py-3 text-sm text-gray-600">
+    &copy; 2025 Self Service Ordering | Employee Portal
+  </footer>
+
+  <script>
+    // Toast notification
+    function showToast(message, type = "success") {
+      const toast = document.getElementById("toast");
+      toast.innerHTML = `
+        <div class="px-4 py-2 rounded-lg shadow text-white text-sm 
+          ${type === 'error' ? 'bg-red-600' : 'bg-green-600'}">
+          ${message}
+        </div>`;
+      toast.classList.remove("hidden");
+      setTimeout(() => toast.classList.add("hidden"), 2500);
+    }
+
+    // Load menu items from database
+    async function loadMenu() {
+      try {
+        const res = await fetch("/api/menu");
+        const data = await res.json();
+        const grid = document.getElementById("menuGrid");
+        grid.innerHTML = "";
+
+        if (!data.success || !data.items.length) {
+          grid.innerHTML = `<p class="text-gray-500 col-span-full">No menu items available.</p>`;
+          return;
+        }
+
+        data.items.forEach(item => {
+          const card = document.createElement("div");
+          card.className = "bg-white shadow rounded-lg overflow-hidden flex flex-col";
+
+          card.innerHTML = `
+            <img src="${item.image_url || 'https://via.placeholder.com/300x200'}"
+                 alt="${item.item_name}" class="w-full h-40 object-cover">
+            <div class="p-4 flex flex-col flex-grow">
+              <h2 class="text-lg font-semibold text-gray-800">${item.item_name}</h2>
+              <p class="text-gray-600 text-sm flex-grow">${item.description || "No description"}</p>
+              <p class="text-gray-900 font-bold mt-2">$${item.price}</p>
+              <button class="bg-blue-600 text-white px-3 py-1 rounded mt-2 hover:bg-blue-700">
+                Add Order
+              </button>
+            </div>
+          `;
+
+          // Handle add order button
+          const btn = card.querySelector("button");
+          btn.addEventListener("click", async () => {
+            try {
+              const res = await fetch("/api/employee/createOrder", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  customer_id: null,
+                  item_id: item.item_id,
+                  quantity: 1
+                })
+              });
+              const result = await res.json();
+              if (res.ok && result.success) {
+                showToast("✅ Order added successfully!");
+              } else {
+                showToast(result.message || "Error adding order", "error");
+              }
+            } catch {
+              showToast("Network error", "error");
+            }
+          });
+
+          grid.appendChild(card);
+        });
+      } catch {
+        showToast("Failed to load menu", "error");
+      }
+    }
+
+    document.addEventListener("DOMContentLoaded", loadMenu);
+  </script>
+</body>
+</html>

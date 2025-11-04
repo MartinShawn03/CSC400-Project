@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Our Menu - Self Service Ordering</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gray-50 text-gray-800 font-sans min-h-screen flex flex-col">
+
+  <!-- Header -->
+  <header class="bg-white border-b border-gray-200">
+    <div class="max-w-6xl mx-auto flex justify-between items-center p-4">
+      <div class="flex items-center gap-3">
+        <button onclick="goBackOrHome()" 
+                class="sm:hidden text-gray-600 hover:text-gray-800 text-sm bg-gray-100 px-3 py-1 rounded-md border border-gray-200">
+          ← Back
+        </button>
+        <h1 class="text-xl sm:text-2xl font-semibold">Our Menu</h1>
+      </div>
+
+      <nav class="hidden sm:flex space-x-6 text-sm">
+        <a href="customer_main.html" class="hover:text-blue-600 transition">Home</a>
+        <a href="customer_cart.html" class="hover:text-blue-600 transition">Cart</a>
+        <a href="customer_checkout.html" class="hover:text-blue-600 transition">Checkout</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Main -->
+  <main class="flex-grow max-w-6xl mx-auto px-4 py-8">
+    <h2 class="text-lg sm:text-xl font-semibold mb-6 text-center">Browse and Add Items to Your Cart</h2>
+
+    <div class="sm:hidden text-center mb-5">
+      <a href="customer_checkout.html"
+         class="inline-block bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 transition">
+        Go to Checkout
+      </a>
+    </div>
+
+    <!-- Menu Grid -->
+    <section id="menuGrid" class="grid gap-4 sm:gap-6 grid-cols-2 sm:grid-cols-3 md:grid-cols-4">
+      <p class="col-span-full text-center text-gray-500">Loading menu items...</p>
+    </section>
+
+    <div class="hidden sm:flex justify-end mt-8">
+      <a href="customer_checkout.html"
+         class="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 transition">
+        Proceed to Checkout
+      </a>
+    </div>
+  </main>
+
+  <footer class="bg-white border-t border-gray-200 mt-10">
+    <div class="max-w-6xl mx-auto p-4 text-center text-xs text-gray-500">
+      &copy; 2025 Self Service Ordering. All rights reserved.
+    </div>
+  </footer>
+
+  <!-- JS -->
+  <script>
+    function goBackOrHome() {
+      if (document.referrer && document.referrer !== window.location.href) {
+        history.back();
+      } else {
+        window.location.href = 'customer_main.html';
+      }
+    }
+
+    // ✅ Fetch and display menu items dynamically
+    async function loadMenu() {
+      const menuGrid = document.getElementById('menuGrid');
+      menuGrid.innerHTML = '<p class="col-span-full text-center text-gray-500">Loading menu items...</p>';
+
+      try {
+        const response = await fetch('/api/menu');  // Fetch from server
+        const data = await response.json();
+
+        if (!data.success || !data.items.length) {
+          menuGrid.innerHTML = '<p class="col-span-full text-center text-gray-500">No items available right now.</p>';
+          return;
+        }
+
+        menuGrid.innerHTML = data.items.map(item => `
+          <div class="bg-white shadow rounded-lg overflow-hidden flex flex-col border border-gray-200">
+            <img src="/public_html/image/placeholder.jpg" alt="${item.item_name}" class="w-full h-36 object-cover">
+            <div class="p-4 flex flex-col flex-grow">
+              <h3 class="font-medium text-gray-900">${item.item_name}</h3>
+              <p class="text-xs text-gray-600 flex-grow">${item.description || ''}</p>
+              <div class="flex justify-between items-center mt-2">
+                <span class="font-semibold">$${parseFloat(item.price).toFixed(2)}</span>
+                <button
+                  class="bg-blue-600 text-white px-3 py-1 rounded-md text-sm hover:bg-blue-700 transition"
+                  data-add-to-cart
+                  data-id="${item.item_id}"
+                  data-name="${item.item_name}"
+                  data-price="${item.price}">
+                  Add
+                </button>
+              </div>
+            </div>
+          </div>
+        `).join('');
+
+        // Enable Add to Cart buttons
+        document.querySelectorAll('[data-add-to-cart]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const { id, name, price } = btn.dataset;
+            const priceCents = Math.round(parseFloat(price) * 100);
+            Cart.addItem({ id, name, priceCents, qty: 1 });
+            Cart.showToast(`${name} added to cart ✅`);
+          });
+        });
+      } catch (err) {
+        console.error('Failed to load menu:', err);
+        menuGrid.innerHTML = '<p class="col-span-full text-center text-red-500">Error loading menu.</p>';
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', loadMenu);
+  </script>
+
+  <!-- 🛒 Cart system -->
+  <script>
+    const Cart = {
+      items: JSON.parse(localStorage.getItem('cartItems')) || [],
+
+      save() {
+        localStorage.setItem('cartItems', JSON.stringify(this.items));
+      },
+
+      addItem({ id, name, priceCents, qty }) {
+        const existing = this.items.find(i => i.id === id);
+        if (existing) {
+          existing.qty += qty;
+        } else {
+          this.items.push({ id, name, priceCents, qty });
+        }
+        this.save();
+        this.showToast(`${name} added to cart ✅`);
+        console.log("Cart now:", this.items);
+      },
+
+      showToast(message) {
+        const toast = document.createElement('div');
+        toast.className = 'fixed bottom-6 right-6 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg z-50';
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 2500);
+      },
+
+      clear() {
+        this.items = [];
+        this.save();
+      },
+
+      getTotalCount() {
+        return this.items.reduce((sum, item) => sum + item.qty, 0);
+      },
+
+      getTotalPrice() {
+        return this.items.reduce((sum, item) => sum + item.priceCents * item.qty, 0) / 100;
+      }
+    };
+  </script>
+</body>
+</html>

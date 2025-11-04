@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Customer Login</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gray-50 min-h-screen flex flex-col">
+
+  <!-- Header -->
+  <header class="bg-white border-b border-gray-200 shadow-sm p-4 flex justify-between items-center">
+    <div class="flex items-center gap-2">
+      <!-- Mobile Back Button -->
+      <button onclick="goBackOrHome()" 
+              class="sm:hidden text-gray-700 bg-gray-100 px-3 py-1 rounded border border-gray-300 hover:bg-gray-200 transition">
+        ← Back
+      </button>
+      <h1 class="text-lg sm:text-xl font-semibold text-gray-800">Customer Login</h1>
+    </div>
+
+    <!-- Nav Buttons (visible on all screens) -->
+    <div class="flex gap-2">
+      <a href="customer_main.html"
+         class="bg-gray-100 text-gray-800 px-3 py-1 rounded border border-gray-300 hover:bg-gray-200 transition text-sm">
+         Home
+      </a>
+      <a href="customer_menu.html"
+         class="bg-gray-100 text-gray-800 px-3 py-1 rounded border border-gray-300 hover:bg-gray-200 transition text-sm">
+         Menu
+      </a>
+    </div>
+  </header>
+
+  <!-- Login Box -->
+  <main class="flex-grow flex items-center justify-center p-4">
+    <div class="bg-white shadow-md rounded-lg p-6 w-full max-w-md">
+      <h2 class="text-2xl font-semibold text-center mb-6">Welcome Back</h2>
+
+      <form id="loginForm" class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Email</label>
+          <input id="email" type="email" required class="w-full border rounded px-3 py-2 focus:ring focus:ring-blue-200">
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Password</label>
+          <input id="password" type="password" required class="w-full border rounded px-3 py-2 focus:ring focus:ring-blue-200">
+        </div>
+
+        <button type="submit"
+                class="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition">
+          Login
+        </button>
+
+        <p class="text-center text-sm text-gray-600 mt-3">
+          Don’t have an account?
+          <a href="customer_registration.html" class="text-blue-600 hover:underline">Register</a>
+        </p>
+      </form>
+    </div>
+  </main>
+
+  <!-- JS -->
+  <script>
+    function goBackOrHome() {
+      if (document.referrer && document.referrer !== window.location.href) {
+        history.back();
+      } else {
+        window.location.href = "customer_main.html";
+      }
+    }
+
+    document.getElementById("loginForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const email = document.getElementById("email").value.trim();
+      const password = document.getElementById("password").value.trim();
+      
+      if (!email || !password) {
+        showToast("❌ Please enter both email and password.", "error");
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+
+        const data = await res.json();
+
+        if (res.ok && data.success) {
+          showToast("✅ Login successful! Redirecting...");
+          setTimeout(() => window.location.href = "/Customer/customer_menu.html", 1000);
+        } else {
+          showToast("❌ " + (data.message || 'Invalid email or password.'), "error");
+        }
+      } catch (err) {
+        console.error(err);
+        showToast("❌ Server connection error", "error");
+      }
+    });
+  </script>
+
+  <!-- Simple toast -->
+  <div id="toast" class="hidden fixed bottom-6 right-6 sm:right-6 sm:bottom-6 z-50"></div>
+  <script>
+    function showToast(message, type = "success") {
+      const toast = document.getElementById("toast");
+      toast.innerHTML = `
+        <div class="px-4 py-3 rounded-lg shadow-md text-white text-sm sm:text-base
+                    ${type === "error" ? "bg-red-600" : "bg-green-600"}">
+          ${message}
+        </div>`;
+      toast.classList.remove("hidden");
+      setTimeout(() => toast.classList.add("hidden"), 2000);
+    }
+  </script>
+</body>
+</html>

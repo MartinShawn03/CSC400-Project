@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Add New Employee</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 font-sans min-h-screen flex flex-col items-center justify-center">
+
+  <div class="bg-white shadow-xl rounded-2xl p-8 w-full max-w-lg">
+    <h1 class="text-3xl font-bold text-amber-700 mb-6 text-center">Add New Employee</h1>
+
+    <form id="registerForm" class="space-y-5">
+      <div>
+        <label class="block text-gray-700 font-medium mb-1">Full Name</label>
+        <input type="text" id="name" required class="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-amber-400">
+      </div>
+
+      <div>
+        <label class="block text-gray-700 font-medium mb-1">Username</label>
+        <input type="text" id="username" required class="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-amber-400">
+      </div>
+
+      <div>
+        <label class="block text-gray-700 font-medium mb-1">Password</label>
+        <input type="password" id="password" required class="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-amber-400">
+      </div>
+
+      <div>
+        <label class="block text-gray-700 font-medium mb-1">Role</label>
+        <select id="role" class="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-amber-400">
+          <option value="Employee">Employee</option>
+          <option value="Admin">Admin</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="block text-gray-700 font-medium mb-1">Email</label>
+        <input type="email" id="email" class="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-amber-400">
+      </div>
+
+      <div>
+        <label class="block text-gray-700 font-medium mb-1">Phone</label>
+        <input type="text" id="phone" class="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-amber-400">
+      </div>
+
+      <button type="submit" class="w-full bg-amber-500 text-white font-semibold py-3 rounded-xl hover:bg-amber-600 transition-all">
+        Register Employee
+      </button>
+
+      <p class="text-center mt-4">
+        <a href="/Employee/admin_main.html" class="text-amber-600 hover:underline">← Back to Admin Dashboard</a>
+      </p>
+    </form>
+  </div>
+
+  <script>
+    document.getElementById('registerForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const data = {
+        name: document.getElementById('name').value,
+        username: document.getElementById('username').value,
+        password: document.getElementById('password').value,
+        role: document.getElementById('role').value,
+        email: document.getElementById('email').value,
+        phone: document.getElementById('phone').value
+      };
+
+      const res = await fetch('/Employee/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+
+      const result = await res.json();
+
+      if (result.success) {
+        alert('Employee registered successfully!');
+        document.getElementById('registerForm').reset();
+      } else {
+        alert(result.message || 'Failed to register employee.');
+      }
+    });
+  </script>
+</body>
+</html>

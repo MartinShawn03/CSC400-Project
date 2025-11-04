@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Customer Registration</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gray-50 min-h-screen flex flex-col">
+
+  <!-- Header -->
+  <header class="bg-white border-b border-gray-200 shadow-sm p-4 flex justify-between items-center">
+    <div class="flex items-center gap-2">
+      <!-- Mobile Back Button -->
+      <button onclick="goBackOrHome()" 
+              class="sm:hidden text-gray-700 bg-gray-100 px-3 py-1 rounded border border-gray-300 hover:bg-gray-200 transition">
+        ← Back
+      </button>
+      <h1 class="text-lg sm:text-xl font-semibold text-gray-800">Customer Registration</h1>
+    </div>
+
+    <!-- Nav Buttons (absolute paths) -->
+    <div class="flex gap-2">
+      <a href="/Customer/customer_main.html"
+         class="bg-gray-100 text-gray-800 px-3 py-1 rounded border border-gray-300 hover:bg-gray-200 transition text-sm">
+         Home
+      </a>
+      <a href="/Customer/customer_menu.html"
+         class="bg-gray-100 text-gray-800 px-3 py-1 rounded border border-gray-300 hover:bg-gray-200 transition text-sm">
+         Menu
+      </a>
+    </div>
+  </header>
+
+  <!-- Registration Box -->
+  <main class="flex-grow flex items-center justify-center p-4">
+    <div class="bg-white shadow-md rounded-lg p-6 w-full max-w-md">
+      <h2 class="text-2xl font-semibold text-center mb-6">Create Account</h2>
+
+      <form id="registerForm" class="space-y-4" novalidate>
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Full Name</label>
+          <input id="name" type="text" required class="w-full border rounded px-3 py-2 focus:ring focus:ring-blue-200">
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Email</label>
+          <input id="email" type="email" required class="w-full border rounded px-3 py-2 focus:ring focus:ring-blue-200">
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Password</label>
+          <input id="password" type="password" required class="w-full border rounded px-3 py-2 focus:ring focus:ring-blue-200">
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Phone (optional)</label>
+          <input id="phone" type="tel" class="w-full border rounded px-3 py-2 focus:ring focus:ring-blue-200">
+        </div>
+
+        <button type="submit"
+                class="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition">
+          Register
+        </button>
+
+        <p class="text-center text-sm text-gray-600 mt-3">
+          Already have an account?
+          <a href="/Customer/customer_login.html" class="text-blue-600 hover:underline">Login here</a>
+        </p>
+      </form>
+    </div>
+  </main>
+
+  <!-- JS -->
+  <script>
+    function goBackOrHome() {
+      if (document.referrer && document.referrer !== window.location.href) {
+        history.back();
+      } else {
+        window.location.href = "/customer_main.html";
+      }
+    }
+
+    document.getElementById("registerForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const user = {
+        name: document.getElementById("name").value.trim(),
+        email: document.getElementById("email").value.trim(),
+        password: document.getElementById("password").value.trim(),
+        phone: document.getElementById("phone").value.trim()
+      };
+
+      // Basic validation
+      if (!user.name || !user.email || !user.password) {
+        showToast("❌ Please fill out name, email, and password.", "error");
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(user)
+        });
+
+        // Try to parse JSON (even if not ok)
+        let data = {};
+        try { data = await res.json(); } catch (_) {}
+
+        if (res.ok && data.success) {
+          showToast("✅ Registration successful! Redirecting to login...", "success");
+          setTimeout(() => { window.location.href = "/Customer/customer_login.html"; }, 1200);
+        } else {
+          const msg = (data && data.message) ? data.message : res.statusText || "Unknown error";
+          showToast("❌ Registration failed: " + msg, "error");
+        }
+      } catch (err) {
+        showToast("⚠️ Network/server error. Is Node running?", "error");
+      }
+    });
+  </script>
+
+  <!-- ✅ Toast HTML/JS -->
+  <div id="toast" class="hidden fixed bottom-6 right-6 sm:right-6 sm:bottom-6 z-50"></div>
+  <script>
+    function showToast(message, type = "success") {
+      const toast = document.getElementById("toast");
+      toast.innerHTML = `
+        <div class="px-4 py-3 rounded-lg shadow-md text-white text-sm sm:text-base animate-fade-in-down
+          ${type === "error" ? "bg-red-600" : "bg-green-600"}">
+          ${message}
+        </div>
+      `;
+      toast.classList.remove("hidden");
+
+      // Center on mobile
+      if (window.innerWidth < 640) {
+        toast.classList.add("left-1/2", "-translate-x-1/2");
+        toast.classList.remove("right-6");
+      } else {
+        toast.classList.remove("left-1/2", "-translate-x-1/2");
+        toast.classList.add("right-6");
+      }
+
+      setTimeout(() => toast.classList.add("hidden"), 3000);
+    }
+
+    // Tailwind animation config (works with CDN)
+    tailwind.config = {
+      theme: {
+        extend: {
+          keyframes: {
+            "fade-in-down": { "0%": { opacity: "0", transform: "translateY(20px)" },
+                              "100%": { opacity: "1", transform: "translateY(0)" } }
+          },
+          animation: { "fade-in-down": "fade-in-down 0.3s ease-out" }
+        }
+      }
+    };
+  </script>
+</body>
+</html>
