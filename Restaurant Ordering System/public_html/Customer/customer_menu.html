@@ -68,7 +68,7 @@
       }
     }
 
-    // ✅ Fetch and display menu items dynamically
+    //  Fetch and display menu items dynamically
     async function loadMenu() {
       const menuGrid = document.getElementById('menuGrid');
       menuGrid.innerHTML = '<p class="col-span-full text-center text-gray-500">Loading menu items...</p>';
@@ -84,7 +84,7 @@
 
         menuGrid.innerHTML = data.items.map(item => `
           <div class="bg-white shadow rounded-lg overflow-hidden flex flex-col border border-gray-200">
-            <img src="/public_html/image/placeholder.jpg" alt="${item.item_name}" class="w-full h-36 object-cover">
+            <img src="/image/${item.image}" alt="${item.item_name}" class="w-full h-36 object-cover">
             <div class="p-4 flex flex-col flex-grow">
               <h3 class="font-medium text-gray-900">${item.item_name}</h3>
               <p class="text-xs text-gray-600 flex-grow">${item.description || ''}</p>

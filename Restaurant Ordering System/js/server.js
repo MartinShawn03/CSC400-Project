@@ -4,6 +4,9 @@ const path = require('path');
 const mysql = require('mysql2');
 const { randomBytes } = require('crypto');
 const bcrypt = require('bcrypt');
+const formidable = require('formidable');
+
+
 
 const baseDir = path.resolve(__dirname, '..');
 
@@ -420,51 +423,93 @@ if (req.method === 'POST' && reqPath === '/Employee/register') {
         res.writeHead(500, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({ success: false, message: 'Database error' }));
       }
+      const items = rows.map(item => ({
+          ...item,
+          image: item.image ? `/image/${item.image}` : '/image/no_image.png'
+      }));
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: true, items: rows }));
+      res.end(JSON.stringify({ success: true, items }));
     });
     return;
   }
 
-  //  ADMIN: Add new menu item
-  if (req.method === 'POST' && reqPath === '/Employee/menu') {
-    const cookie = req.headers.cookie || '';
-    const match = cookie.match(/session=([a-f0-9]+)/);
-    const token = match ? match[1] : null;
-    const session = token ? sessions[token] : null;
 
-    if (!session || String(session.role).toLowerCase() !== 'admin') {
-      res.writeHead(403, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ success: false, message: 'Unauthorized: Admins only' }));
+//  ADMIN: Add new menu item (with image upload)
+if (req.method === 'POST' && reqPath === '/Employee/menu') {
+  const cookie = req.headers.cookie || '';
+  const match = cookie.match(/session=([a-f0-9]+)/);
+  const token = match ? match[1] : null;
+  const session = token ? sessions[token] : null;
+
+  // Only admins can access
+  if (!session || String(session.role).toLowerCase() !== 'admin') {
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ success: false, message: 'Unauthorized: Admins only' }));
+  }
+
+  // Use Formidable to handle text + image upload
+  const form = new formidable.IncomingForm();
+  const uploadDir = path.join(baseDir, 'public_html', 'image');
+  if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+  form.uploadDir = uploadDir;
+  form.keepExtensions = true;
+
+  form.parse(req, (err, fields, files) => {
+    if (err) {
+      console.error('Form parse error:', err);
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: false, message: 'Form parse error' }));
     }
+    
+    const item_name = Array.isArray(fields.item_name) ? fields.item_name[0] : fields.item_name || '';
+    const description = Array.isArray(fields.description) ? fields.description[0] : fields.description || '';
+    const price = Array.isArray(fields.price) ? fields.price[0] : fields.price || '';
+    const category = Array.isArray(fields.category) ? fields.category[0] : fields.category || '';
+    const imageFile = Array.isArray(files.image) ? files.image[0] : files.image;
 
-    let body = '';
-    req.on('data', chunk => body += chunk);
-    req.on('end', () => {
-      try {
-        const { item_name, description, price, category } = JSON.parse(body);
-        if (!item_name || !price) {
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          return res.end(JSON.stringify({ success: false, message: 'Missing fields' }));
-        }
 
-        const sql = 'INSERT INTO Menu (item_name, description, price, category) VALUES (?, ?, ?, ?)';
-        connection_pool.query(sql, [item_name, description, price, category], (err) => {
-          if (err) {
-            console.error('Insert Error:', err);
-            res.writeHead(500, { 'Content-Type': 'application/json' });
-            return res.end(JSON.stringify({ success: false, message: 'Database error' }));
-          }
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ success: true }));
-        });
-      } catch {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: false, message: 'Invalid request format' }));
-      }
-    });
-    return;
+    if (!item_name || !price) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: false, message: 'Missing item name or price' }));
+    }
+    let imageName = null;
+
+if (imageFile && imageFile.filepath) {
+  // Detect original file extension (.jpg, .png, etc.)
+  const ext = path.extname(imageFile.originalFilename || '') || '.jpg';
+  // Generate a clean unique filename
+  imageName = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}${ext}`;
+
+  const newPath = path.join(uploadDir, imageName);
+  try {
+    fs.renameSync(imageFile.filepath, newPath);
+    console.log(' Image saved as:', imageName);
+  } catch (err) {
+    console.error(' Rename error:', err);
   }
+} else {
+  console.log('No image file uploaded.');
+}
+
+
+
+    // Insert new menu item into database
+    const sql = 'INSERT INTO Menu (item_name, description, price, category, image, available) VALUES (?, ?, ?, ?, ?, 1)';
+    connection_pool.query(sql, [item_name, description, price, category, imageName], (err) => {
+      if (err) {
+        console.error('Insert Error:', err);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: false, message: 'Database error' }));
+      }
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, message: 'Menu item added successfully!' }));
+    });
+  });
+  return;
+}
+
+
 
   //  ADMIN: Delete menu item
   if (req.method === 'DELETE' && reqPath.startsWith('/Employee/menu/')) {
@@ -612,7 +657,7 @@ if (req.method === 'POST' && reqPath === '/Employee/register') {
         }
 
         const sql = `
-          INSERT INTO Orders (customer_id, item_id, quanity, status)
+          INSERT INTO Orders (customer_id, item_id, quantity, status)
           VALUES (?, ?, ?, 'Pending')
         `;
 
@@ -638,7 +683,7 @@ if (req.method === 'POST' && reqPath === '/Employee/register') {
   // ✅ EMPLOYEE: Fetch all pending orders
   if (req.method === 'GET' && req.url === '/api/orders/pending') {
     const sql = `
-      SELECT order_id, customer_id, item_id, quanity AS quantity, status, order_time
+      SELECT order_id, customer_id, item_id,  quantity, status, order_time
       FROM Orders
       WHERE status = 'Pending'
       ORDER BY order_time DESC
@@ -656,7 +701,10 @@ if (req.method === 'POST' && reqPath === '/Employee/register') {
     return;
   }
 
-  // ✅ Public: Fetch available menu items (for customers & employees)
+
+
+
+  // Public: Fetch available menu items (for customers & employees)
   if (req.method === 'GET' && req.url === '/api/menu') {
     const sql = 'SELECT * FROM Menu WHERE available = 1 OR available IS NULL';
     connection_pool.query(sql, (err, rows) => {
@@ -665,36 +713,53 @@ if (req.method === 'POST' && reqPath === '/Employee/register') {
         res.writeHead(500, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({ success: false, message: 'Database error' }));
       }
+      const items = rows.map(item => ({
+      ...item,
+      image: item.image ? `/${item.image}` : '/image/no_image.png'
+      }));
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: true, items: rows }));
+      res.end(JSON.stringify({ success: true, items}));
     });
     return;
   }
 
-  //  Static file handler
-  const filePath = path.join(baseDir, 'public_html', reqPath);
-  const ext = path.extname(filePath).toLowerCase();
-  const mimeTypes = {
-    '.html': 'text/html',
-    '.css': 'text/css',
-    '.js': 'application/javascript',
-    '.png': 'image/png',
-    '.jpg': 'image/jpeg',
-    '.jpeg': 'image/jpeg',
-    '.mp3': 'audio/mpeg',
-    '.ico': 'image/x-icon'
-  };
-  const contentType = mimeTypes[ext] || 'text/html';
+  //  Static file handler (includes images and Employee folder)
+  let filePath = path.join(baseDir, 'public_html', reqPath.replace(/^\/+/, ''));
 
-  fs.readFile(filePath, (err, data) => {
-    if (err) {
-      res.writeHead(404, { 'Content-Type': 'text/plain' });
-      res.end('404 - File Not Found');
-    } else {
-      res.writeHead(200, { 'Content-Type': contentType });
-      res.end(data);
-    }
-  });
+  // Allow serving images and Employee HTML under public_html
+  if (
+    reqPath.startsWith('/image/') ||
+    reqPath.startsWith('/Employee/') ||
+    reqPath.endsWith('.html') ||
+    reqPath.endsWith('.css') ||
+    reqPath.endsWith('.js') ||
+    reqPath.match(/\.(jpg|jpeg|png|gif|mp3|ico)$/)
+  ) {
+    const ext = path.extname(filePath).toLowerCase();
+    const mimeTypes = {
+      '.html': 'text/html',
+      '.css': 'text/css',
+      '.js': 'application/javascript',
+      '.png': 'image/png',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.gif': 'image/gif',
+      '.mp3': 'audio/mpeg',
+      '.ico': 'image/x-icon'
+    };
+    const contentType = mimeTypes[ext] || 'application/octet-stream';
+
+    fs.readFile(filePath, (err, data) => {
+      if (err) {
+        console.error('Static file error:', err);
+        res.writeHead(404, { 'Content-Type': 'text/plain' });
+        res.end('404 - File Not Found');
+      } else {
+        res.writeHead(200, { 'Content-Type': contentType });
+        res.end(data);
+      }
+    });
+    return;
+  }
 });
-
 server.listen(80, () => console.log(' Server running on port 80'));
