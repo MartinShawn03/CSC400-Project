@@ -725,6 +725,159 @@ if (req.method === 'POST' && req.url === '/api/orders/customer') {
   });
   return;
 }
+
+
+
+// --- Employee Actions api routes --------
+
+//-- Confirm order ---
+
+/*
+if (req.method === 'POST' && req.url === '/api/orders/confirm') {
+  let body = '';
+  req.on('data', chunk => body += chunk);
+  req.on('end', () => {
+    try {
+      const { order_id } = JSON.parse(body);
+      const sql = `UPDATE Orders SET status='In Progress' WHERE order_id = ?`;
+
+      connection_pool.query(sql, [order_id], (err) => {
+        if (err) {
+          console.error('Confirm error:', err);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ success: false }));
+        }
+
+	res.writeHead(200, { 'Content-Type': 'application/json' });
+	res.end(JSON.stringify({
+	success: true,
+	message: 'Order moved to In progress'
+	}));
+	});
+    } catch {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, message: 'Invalid JSON' }));
+    }
+  });
+  return;
+}
+
+
+//--  Completes order --
+
+if (req.method === 'POST' && req.url === '/api/orders/complete') {
+  let body = '';
+  req.on('data', chunk => body += chunk);
+  req.on('end', () => {
+    try {
+      const { order_id } = JSON.parse(body);
+      const sql = `UPDATE Orders SET status='Completed' WHERE order_id = ?`;
+
+      connection_pool.query(sql, [order_id], (err) => {
+        if (err) {
+          console.error('Complete error:', err);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ success: false }));
+        }
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          success: true,
+          message: 'Order marked Completed'
+        }));
+      });
+    } catch {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, message: 'Invalid JSON' }));
+    }
+  });
+  return;
+}
+
+
+//-- Cancel button ---
+
+if (req.method === 'POST' && req.url === '/api/orders/cancel') {
+  let body = '';
+  req.on('data', chunk => body += chunk);
+  req.on('end', () => {
+    try {
+      const { order_id } = JSON.parse(body);
+      const sql = `UPDATE Orders SET status='Cancelled' WHERE order_id = ?`;
+
+      connection_pool.query(sql, [order_id], (err) => {
+        if (err) {
+          console.error('Cancel error:', err);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ success: false }));
+        }
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          success: true,
+          message: 'Order Cancelled'
+        }));
+      });
+    } catch {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, message: 'Invalid JSON' }));
+    }
+  });
+  return;
+}
+
+*/
+
+// ---------- UPDATE ORDER STATUS ----------
+if (req.method === 'PUT' && req.url === '/api/orders/updateStatus') {
+  let body = '';
+  req.on('data', chunk => body += chunk);
+
+  req.on('end', () => {
+    try {
+      const { order_id, status } = JSON.parse(body);
+
+      if (!order_id || !status) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({
+          success: false,
+          message: 'Missing order_id or status'
+        }));
+      }
+
+      const sql = `UPDATE Orders SET status = ? WHERE order_id = ?`;
+
+      connection_pool.query(sql, [status, order_id], (err) => {
+        if (err) {
+          console.error('DB Error updateStatus:', err);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({
+            success: false,
+            message: 'Database error'
+          }));
+        }
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          success: true,
+          message: 'Order status updated'
+        }));
+      });
+
+    } catch (err) {
+      console.error("JSON Error:", err);
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        success: false,
+        message: 'Invalid JSON'
+      }));
+    }
+  });
+  return;
+}
+
+
+
 // ---------- QR: Static PNG for this restaurant’s customer_main ----------
 if (req.method === 'GET' && (reqPath === '/qr.png' || reqPath === '/qr')) {
   QRCode.toBuffer(
@@ -745,6 +898,29 @@ if (req.method === 'GET' && (reqPath === '/qr.png' || reqPath === '/qr')) {
   );
   return;
 }
+
+
+// ---------- EMPLOYEE: Fetch active orders (Pending + In Progress) ----------
+if (req.method === 'GET' && req.url === '/api/orders/active') {
+  const sql = `
+    SELECT order_id, customer_id, item_id, quantity, status, order_time
+    FROM Orders
+    WHERE status = 'Pending' OR status = 'In Progress'
+    ORDER BY order_time DESC
+  `;
+  connection_pool.query(sql, (err, rows) => {
+    if (err) {
+      console.error('DB Fetch Error:', err);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: false }));
+    }
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, orders: rows }));
+  });
+  return;
+}
+
 
   // ---------- Static file handler ----------
   const filePath = path.join(baseDir, 'public_html', reqPath);

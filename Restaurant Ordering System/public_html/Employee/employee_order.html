@@ -76,15 +76,39 @@
     function showToast(message, type = "success") {
       const toast = document.getElementById("toast");
       toast.innerHTML = `
-        <div class="bg-green-600 text-white px-4 py-2 rounded-lg shadow">${message}</div>
-      `;
+    <div class="px-4 py-2 rounded-lg shadow ${type === "error" ? "bg-red-600 text-white" : "bg-green-600 text-white"}">
+      ${message}
+    </div>`;
+
       toast.classList.remove("hidden");
       setTimeout(() => toast.classList.add("hidden"), 2500);
     }
 
+async function updateOrderStatus(order_id, status) {
+  try {
+    const res = await fetch('/api/orders/updateStatus', {
+      method: 'PUT',
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ order_id, status })
+    });
+
+
+    const data = await res.json();
+    if (!data.success) throw new Error(data.message);
+
+    showToast(`Order ${status}`);
+    loadOrders(); // Refresh orders list
+
+  } catch (err) {
+    showToast("Failed to update order", "error");
+    console.error(err);
+  }
+}
+
+
     async function loadOrders() {
       try {
-        const res = await fetch('/api/orders/pending');
+        const res = await fetch('/api/orders/active');
         const data = await res.json();
 
         const grid = document.getElementById('ordersGrid');
@@ -101,21 +125,50 @@
           card.innerHTML = `
             <div class="p-4 flex flex-col flex-grow">
               <p class="text-gray-700 text-sm flex-grow">
-                Order #${o.order_id} - Customer ID: ${o.customer_id ?? "—"} - Item ID: ${o.item_id} - Qty: ${o.quantity}
+               <strong> Order #${o.order_id}</strong> - Customer ID: ${o.customer_id ?? "—"} - Item ID: ${o.item_id} - Qty: ${o.quantity}
               </p>
-              <button class="bg-green-600 text-white px-3 py-1 rounded mt-2 hover:bg-green-700 transition">Confirm Order</button>
-            </div>`;
-          card.querySelector('button').addEventListener('click', () => {
-            showToast('✅ Order confirmed (UI only)');
-          });
-          grid.appendChild(card);
-        });
-      } catch {
-        showToast('Error loading orders', 'error');
-      }
-    }
 
-    document.addEventListener('DOMContentLoaded', loadOrders);
+
+            <div class="flex gap-2 mt-3">
+              <button class="flex-1 bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 transition">In Progress</button>
+              <button class="flex-1 bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 transition">Confirm</button>
+              <button class="flex-1 bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 transition">Cancel</button>
+            </div>
+            </div>
+        `;
+
+
+	/// Assign button actions
+
+        const [inProgressBtn, confirmBtn, cancelBtn] = card.querySelectorAll('button');
+
+if (o.status === "In Progress") {
+  inProgressBtn.disabled = true;
+  inProgressBtn.classList.add("opacity-50", "cursor-not-allowed");
+}
+
+inProgressBtn.addEventListener('click', () => {
+  updateOrderStatus(o.order_id, "In Progress");
+});
+
+confirmBtn.addEventListener('click', () => {
+  updateOrderStatus(o.order_id, "Completed");
+});
+
+cancelBtn.addEventListener('click', () => {
+  updateOrderStatus(o.order_id, "Cancelled");
+});
+
+
+grid.appendChild(card);
+});
+} catch (err) {
+  showToast("Error loading orders", "error");
+  console.error(err);
+}
+}
+  document.addEventListener('DOMContentLoaded', loadOrders);
   </script>
+
 </body>
-</html>
+</html> 
