@@ -653,6 +653,12 @@ if (req.method === 'POST' && reqPath === '/Employee/register') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ success: true, message: 'Employee deleted successfully' }));
       res.end(JSON.stringify({ success: true, items: rows }));
+      const items = rows.map(item => ({
+          ...item,
+          image: item.image ? `/image/${item.image}` : '/image/no_image.png'
+      }));
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, items }));
     });
     return;
   }
@@ -689,6 +695,7 @@ if (req.method === 'POST' && reqPath === '/Employee/register') {
   }
 
 
+
 //  ADMIN: Add new menu item (with image upload)
 if (req.method === 'POST' && reqPath === '/Employee/menu') {
   const cookie = req.headers.cookie || '';
@@ -714,6 +721,7 @@ if (req.method === 'POST' && reqPath === '/Employee/menu') {
       console.error('Form parse error:', err);
       res.writeHead(400, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ success: false, message: 'Form parse error' }));
+<<<<<<< HEAD
     }
     
     const item_name = Array.isArray(fields.item_name) ? fields.item_name[0] : fields.item_name || '';
@@ -792,34 +800,56 @@ if (imageFile && imageFile.filepath) {
       res.writeHead(403, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ success: false, message: 'Unauthorized: Admins only' }));
     }
+    
+    const item_name = Array.isArray(fields.item_name) ? fields.item_name[0] : fields.item_name || '';
+    const description = Array.isArray(fields.description) ? fields.description[0] : fields.description || '';
+    const price = Array.isArray(fields.price) ? fields.price[0] : fields.price || '';
+    const category = Array.isArray(fields.category) ? fields.category[0] : fields.category || '';
+    const imageFile = Array.isArray(files.image) ? files.image[0] : files.image;
 
-    let body = '';
-    req.on('data', chunk => body += chunk);
-    req.on('end', () => {
-      try {
-        const { item_name, description, price, category } = JSON.parse(body);
-        if (!item_name || !price) {
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          return res.end(JSON.stringify({ success: false, message: 'Missing fields' }));
-        }
 
-        const sql = 'INSERT INTO Menu (item_name, description, price, category) VALUES (?, ?, ?, ?)';
-        connection_pool.query(sql, [item_name, description, price, category], (err) => {
-          if (err) {
-            console.error('Insert Error:', err);
-            res.writeHead(500, { 'Content-Type': 'application/json' });
-            return res.end(JSON.stringify({ success: false, message: 'Database error' }));
-          }
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ success: true }));
-        });
-      } catch {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: false, message: 'Invalid request format' }));
-      }
-    });
-    return;
+    if (!item_name || !price) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: false, message: 'Missing item name or price' }));
+    }
+    let imageName = null;
+
+if (imageFile && imageFile.filepath) {
+  // Detect original file extension (.jpg, .png, etc.)
+  const ext = path.extname(imageFile.originalFilename || '') || '.jpg';
+  // Generate a clean unique filename
+  imageName = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}${ext}`;
+
+  const newPath = path.join(uploadDir, imageName);
+  try {
+    fs.renameSync(imageFile.filepath, newPath);
+    console.log(' Image saved as:', imageName);
+  } catch (err) {
+    console.error(' Rename error:', err);
   }
+} else {
+  console.log('No image file uploaded.');
+}
+
+
+
+    // Insert new menu item into database
+    const sql = 'INSERT INTO Menu (item_name, description, price, category, image, available) VALUES (?, ?, ?, ?, ?, 1)';
+    connection_pool.query(sql, [item_name, description, price, category, imageName], (err) => {
+      if (err) {
+        console.error('Insert Error:', err);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: false, message: 'Database error' }));
+      }
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, message: 'Menu item added successfully!' }));
+    });
+  });
+  return;
+}
+
+
 
   // ADMIN: Toggle menu item availability (PUT /Employee/menu/:id)
   if (req.method === 'PUT' && reqPath.startsWith('/Employee/menu/')) {
@@ -1008,7 +1038,6 @@ if (imageFile && imageFile.filepath) {
 
         const sql = `
           INSERT INTO Orders (customer_id, item_id, quantity, status)
-          INSERT INTO Orders (customer_id, item_id, quanity, status)
           VALUES (?, ?, ?, 'Pending')
         `;
 
@@ -1035,7 +1064,6 @@ if (imageFile && imageFile.filepath) {
   if (req.method === 'GET' && req.url === '/api/orders/pending') {
     const sql = `
       SELECT order_id, customer_id, item_id,  quantity, status, order_time
-      SELECT order_id, customer_id, item_id, quanity AS quantity, status, order_time
       FROM Orders
       WHERE status = 'Pending'
       ORDER BY order_time DESC
@@ -1053,7 +1081,10 @@ if (imageFile && imageFile.filepath) {
     return;
   }
 
-  // ✅ Public: Fetch available menu items (for customers & employees)
+
+
+
+  // Public: Fetch available menu items (for customers & employees)
   if (req.method === 'GET' && req.url === '/api/menu') {
     const sql = 'SELECT * FROM Menu WHERE available = 1 OR available IS NULL';
     connection_pool.query(sql, (err, rows) => {
@@ -1062,8 +1093,12 @@ if (imageFile && imageFile.filepath) {
         res.writeHead(500, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({ success: false, message: 'Database error' }));
       }
+      const items = rows.map(item => ({
+      ...item,
+      image: item.image ? `/${item.image}` : '/image/no_image.png'
+      }));
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: true, items: rows }));
+      res.end(JSON.stringify({ success: true, items}));
     });
     return;
   }
