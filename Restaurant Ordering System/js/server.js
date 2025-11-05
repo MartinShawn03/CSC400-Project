@@ -558,7 +558,7 @@ if (req.method === 'POST' && req.url === '/api/logout') {
         }
 
         const sql = `
-          INSERT INTO Orders (customer_id, item_id, quanity, status)
+          INSERT INTO Orders (customer_id, item_id, quantity, status)
           VALUES (?, ?, ?, 'Pending')
         `;
 
