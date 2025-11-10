@@ -558,7 +558,7 @@ if (req.method === 'POST' && req.url === '/api/logout') {
         }
 
         const sql = `
-          INSERT INTO Orders (customer_id, item_id, quanity, status)
+          INSERT INTO Orders (customer_id, item_id, quantity, status)
           VALUES (?, ?, ?, 'Pending')
         `;
 
@@ -725,6 +725,60 @@ if (req.method === 'POST' && req.url === '/api/orders/customer') {
   });
   return;
 }
+
+
+
+
+// ---------- UPDATE ORDER STATUS ----------
+if (req.method === 'PUT' && req.url === '/api/orders/updateStatus') {
+  let body = '';
+  req.on('data', chunk => body += chunk);
+
+  req.on('end', () => {
+    try {
+      const { order_id, status } = JSON.parse(body);
+
+      if (!order_id || !status) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({
+          success: false,
+          message: 'Missing order_id or status'
+        }));
+      }
+
+      const sql = `UPDATE Orders SET status = ? WHERE order_id = ?`;
+
+      connection_pool.query(sql, [status, order_id], (err) => {
+        if (err) {
+          console.error('DB Error updateStatus:', err);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({
+            success: false,
+            message: 'Database error'
+          }));
+        }
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          success: true,
+          message: 'Order status updated'
+        }));
+      });
+
+    } catch (err) {
+      console.error("JSON Error:", err);
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        success: false,
+        message: 'Invalid JSON'
+      }));
+    }
+  });
+  return;
+}
+
+
+
 // ---------- QR: Static PNG for this restaurant’s customer_main ----------
 if (req.method === 'GET' && (reqPath === '/qr.png' || reqPath === '/qr')) {
   QRCode.toBuffer(
@@ -745,6 +799,39 @@ if (req.method === 'GET' && (reqPath === '/qr.png' || reqPath === '/qr')) {
   );
   return;
 }
+
+
+// ---------- EMPLOYEE: Fetch active orders (Pending + In Progress) ----------
+if (req.method === 'GET' && req.url === '/api/orders/active') {
+  const sql = `
+    SELECT
+      o.order_id,
+      o.customer_id,
+      o.item_id,
+      o.quantity,
+      o.status,
+      o.order_time,
+      COALESCE(c.name, 'Walk-in') AS customer_name,
+      m.item_name
+    FROM Orders o
+    LEFT JOIN Customers c ON o.customer_id = c.customer_id
+    LEFT JOIN Menu m ON o.item_id = m.item_id
+    WHERE o.status IN ('Pending', 'In Progress')
+    ORDER BY o.order_time DESC
+  `;
+  connection_pool.query(sql, (err, rows) => {
+    if (err) {
+      console.error('DB Fetch Error:', err);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: false }));
+    }
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, orders: rows }));
+  });
+  return;
+}
+
 
   // ---------- Static file handler ----------
   const filePath = path.join(baseDir, 'public_html', reqPath);

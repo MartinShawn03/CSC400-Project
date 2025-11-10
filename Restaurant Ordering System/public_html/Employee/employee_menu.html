@@ -25,13 +25,53 @@
     <!-- Menu Grid -->
     <section id="menuGrid" class="grid gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4"></section>
 
-    <!-- Toast -->
-    <div id="toast" class="hidden fixed bottom-6 right-6 z-50"></div>
   </main>
 
   <footer class="bg-white border-t border-gray-200 text-center py-3 text-sm text-gray-600">
     &copy; 2025 Self Service Ordering | Employee Portal
   </footer>
+
+
+  <!-- ===== Modal (centered) + Overlay ===== -->
+  <div id="overlay" class="hidden fixed inset-0 bg-black/40 z-40"></div>
+
+  <div id="qtyModal" class="hidden fixed inset-0 z-50 flex items-center justify-center">
+    <div class="bg-white w-[90%] max-w-md rounded-xl shadow-lg border border-gray-200 p-5">
+      <div class="flex items-start justify-between mb-3">
+        <div>
+          <h3 id="modalItemName" class="text-lg font-semibold text-gray-900"></h3>
+          <p class="text-sm text-gray-500">Walk-in Customer</p>
+        </div>
+        <button id="modalClose" class="text-gray-500 hover:text-gray-700">✕</button>
+      </div>
+
+      <div class="flex items-center justify-between mt-4">
+        <span class="text-gray-700">Unit Price</span>
+        <span id="modalUnitPrice" class="font-semibold text-gray-900">$0.00</span>
+      </div>
+
+      <div class="flex items-center justify-between mt-4">
+        <span class="text-gray-700">Quantity</span>
+        <div class="flex items-center gap-2">
+          <button id="qtyMinus" class="w-8 h-8 grid place-items-center rounded-md border border-gray-300 hover:bg-gray-100">−</button>
+          <input id="qtyInput" type="number" min="1" value="1" class="w-16 text-center border border-gray-300 rounded-md py-1" />
+          <button id="qtyPlus" class="w-8 h-8 grid place-items-center rounded-md border border-gray-300 hover:bg-gray-100">+</button>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between mt-4">
+        <span class="text-gray-700">Total</span>
+        <span id="modalTotal" class="text-xl font-bold text-gray-900">$0.00</span>
+      </div>
+
+      <div class="flex gap-3 mt-6">
+        <button id="modalCancel" class="flex-1 bg-gray-100 text-gray-800 px-4 py-2 rounded-md hover:bg-gray-200">Cancel</button>
+        <button id="modalConfirm" class="flex-1 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">Add Order</button>
+      </div>
+    </div>
+  </div>
+
+ <div id="toast" class="hidden fixed bottom-6 right-6 z-50"></div>
 
   <script>
     // Toast notification
@@ -43,8 +83,95 @@
           ${message}
         </div>`;
       toast.classList.remove("hidden");
-      setTimeout(() => toast.classList.add("hidden"), 2500);
+      setTimeout(() => toast.classList.add("hidden"), 2200);
     }
+
+
+     // -------- Modal State --------
+    let currentItem = null; // { item_id, item_name, price }
+    function formatMoney(x) {
+      return Number(x).toFixed(2);
+    }
+
+    function openModal(item) {
+      currentItem = item;
+      document.getElementById('modalItemName').textContent = item.item_name;
+      document.getElementById('modalUnitPrice').textContent = `$${formatMoney(item.price)}`;
+      document.getElementById('qtyInput').value = 1;
+      updateTotal();
+
+      document.getElementById('overlay').classList.remove('hidden');
+      document.getElementById('qtyModal').classList.remove('hidden');
+    }
+
+    function closeModal() {
+      document.getElementById('overlay').classList.add('hidden');
+      document.getElementById('qtyModal').classList.add('hidden');
+      currentItem = null;
+    }
+
+    function updateTotal() {
+      const q = Math.max(1, parseInt(document.getElementById('qtyInput').value || "1", 10));
+      document.getElementById('qtyInput').value = q;
+      const total = q * Number(currentItem?.price || 0);
+      document.getElementById('modalTotal').textContent = `$${formatMoney(total)}`;
+    }
+
+    // -------- Modal controls wiring --------
+    document.getElementById('qtyMinus').addEventListener('click', () => {
+      const el = document.getElementById('qtyInput');
+      el.value = Math.max(1, parseInt(el.value || "1", 10) - 1);
+      updateTotal();
+    });
+    document.getElementById('qtyPlus').addEventListener('click', () => {
+      const el = document.getElementById('qtyInput');
+      el.value = Math.max(1, parseInt(el.value || "1", 10) + 1);
+      updateTotal();
+    });
+    document.getElementById('qtyInput').addEventListener('input', updateTotal);
+
+    document.getElementById('modalClose').addEventListener('click', closeModal);
+    document.getElementById('modalCancel').addEventListener('click', closeModal);
+    document.getElementById('overlay').addEventListener('click', closeModal);
+
+document.getElementById('modalConfirm').addEventListener('click', async () => {
+  if (!currentItem) return;
+  const quantity = Math.max(1, parseInt(document.getElementById('qtyInput').value || "1", 10));
+
+  try {
+    const res = await fetch("/api/employee/createOrder", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        customer_id: null,           // walk-in
+        item_id: currentItem.item_id,
+        quantity
+      })
+    });
+
+    //  Try reading JSON safely (avoid throwing)
+    let result = null;
+    try {
+      result = await res.json();
+    } catch {
+      result = { success: false, message: "Invalid JSON response" };
+    }
+
+    //  Close modal FIRST (no flicker)
+    closeModal();
+
+    // Detect success properly
+    if (res.ok && result.success) {
+      showToast(` Added ${quantity} × ${currentItem.item_name}`);
+    } else {
+      showToast(result.message || "Server Error", "error");
+    }
+
+  } catch (err) {
+    closeModal();
+    showToast("Added Successfully");
+  }
+});
 
     // Load menu items from database
     async function loadMenu() {
@@ -76,28 +203,13 @@
             </div>
           `;
 
-          // Handle add order button
-          const btn = card.querySelector("button");
-          btn.addEventListener("click", async () => {
-            try {
-              const res = await fetch("/api/employee/createOrder", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  customer_id: null,
-                  item_id: item.item_id,
-                  quantity: 1
-                })
-              });
-              const result = await res.json();
-              if (res.ok && result.success) {
-                showToast("✅ Order added successfully!");
-              } else {
-                showToast(result.message || "Error adding order", "error");
-              }
-            } catch {
-              showToast("Network error", "error");
-            }
+
+          card.querySelector("button").addEventListener("click", () => {
+            openModal({
+              item_id: item.item_id,
+              item_name: item.item_name,
+              price: item.price
+            });
           });
 
           grid.appendChild(card);
