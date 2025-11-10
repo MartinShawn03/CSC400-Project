@@ -57,67 +57,71 @@ function getCustomerSessionFromCookie(req) {
   return token ? customerSessions[token] : null;
 }
 
-  // ---------- EMPLOYEE LOGIN ----------
-  if (req.method === 'POST' && (reqPath === '/Employee/login' || reqPath === '/employee/login')) {
-    let body = '';
-    req.on('data', chunk => body += chunk);
-    req.on('end', () => {
-      try {
-        const { username, password } = JSON.parse(body);
-        if (!username || !password) {
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          return res.end(JSON.stringify({ success: false, message: 'Missing username or password' }));
+// ---------- EMPLOYEE LOGIN ----------
+if (req.method === 'POST' && (reqPath === '/Employee/login' || reqPath === '/employee/login')) {
+  let body = '';
+  req.on('data', chunk => body += chunk);
+  req.on('end', () => {
+    try {
+      const { username, password } = JSON.parse(body);
+      if (!username || !password) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: false, message: 'Missing username or password' }));
+      }
+
+      connection_pool.query('SELECT * FROM Employees WHERE username = ? LIMIT 1', [username], (err, results) => {
+        if (err) {
+          console.error('DB Error:', err);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ success: false, message: 'Database error' }));
         }
 
-        connection_pool.query('SELECT * FROM Employees WHERE username = ? LIMIT 1', [username], (err, results) => {
+        if (!results.length) {
+          res.writeHead(401, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ success: false, message: 'User not found' }));
+        }
+
+        const employee = results[0];
+
+        // Compare hashed password
+        bcrypt.compare(password, employee.password, (err, isMatch) => {
           if (err) {
-            console.error('DB Error:', err);
+            console.error('Compare Error:', err);
             res.writeHead(500, { 'Content-Type': 'application/json' });
-            return res.end(JSON.stringify({ success: false, message: 'Database error' }));
+            return res.end(JSON.stringify({ success: false, message: 'Error verifying password' }));
           }
 
-          if (!results.length) {
+          if (!isMatch) {
             res.writeHead(401, { 'Content-Type': 'application/json' });
-            return res.end(JSON.stringify({ success: false, message: 'User not found' }));
+            return res.end(JSON.stringify({ success: false, message: 'Invalid password' }));
           }
 
-          const employee = results[0];
+          // Create session token
+          const token = randomBytes(16).toString('hex');
+          sessions[token] = {
+            id: employee.employee_id,
+            username: employee.username,
+            role: employee.role || 'Cashier'
+          };
 
-          // Compare hashed password
-          bcrypt.compare(password, employee.password, (err, isMatch) => {
-            if (err) {
-              console.error('Compare Error:', err);
-              res.writeHead(500, { 'Content-Type': 'application/json' });
-              return res.end(JSON.stringify({ success: false, message: 'Error verifying password' }));
-            }
-
-            if (!isMatch) {
-              res.writeHead(401, { 'Content-Type': 'application/json' });
-              return res.end(JSON.stringify({ success: false, message: 'Invalid password' }));
-            }
-
-            // Create session token
-            const token = randomBytes(16).toString('hex');
-            sessions[token] = {
-              id: employee.employee_id,
-              username: employee.username,
-              role: employee.role || 'Cashier'
-            };
-
-            res.writeHead(200, {
-              'Content-Type': 'application/json',
-              'Set-Cookie': `session=${token}; HttpOnly; Path=/; Max-Age=3600`
-            });
-            res.end(JSON.stringify({ success: true, role: employee.role }));
+          res.writeHead(200, {
+            'Content-Type': 'application/json',
+            // FIX: Clear customer session when employee logs in
+            'Set-Cookie': [
+              `session=${token}; HttpOnly; Path=/; Max-Age=3600`,
+              `cust_session=; HttpOnly; Path=/; Max-Age=0` // Clear customer session
+            ]
           });
+          res.end(JSON.stringify({ success: true, role: employee.role }));
         });
-      } catch (e) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: false, message: 'Invalid request' }));
-      }
-    });
-    return;
-  }
+      });
+    } catch (e) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, message: 'Invalid request' }));
+    }
+  });
+  return;
+}
 
   // ---------- EMPLOYEE LOGOUT ----------
   if (req.method === 'POST' && (reqPath === '/Employee/logout' || reqPath === '/employee/logout')) {
@@ -505,7 +509,7 @@ if (req.method === 'POST' && req.url === '/api/login') {
 
             delete user.password;
 
-            // Create session token
+            // Create session token - FIX: Use cust_session consistently
             const token = randomBytes(16).toString('hex');
             customerSessions[token] = {
               id: user.customer_id,
@@ -516,7 +520,11 @@ if (req.method === 'POST' && req.url === '/api/login') {
 
             res.writeHead(200, {
               'Content-Type': 'application/json',
-              'Set-Cookie': `cust_session=${token}; HttpOnly; Path=/; Max-Age=86400` // 24 hours
+              // FIX: Use cust_session and clear any existing session cookie
+              'Set-Cookie': [
+                `cust_session=${token}; HttpOnly; Path=/; Max-Age=86400`,
+                `session=; HttpOnly; Path=/; Max-Age=0` // Clear employee session
+              ]
             });
             res.end(JSON.stringify({ success: true, user }));
           });
