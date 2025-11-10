@@ -10,28 +10,20 @@
 <body class="bg-gray-50 min-h-screen flex flex-col">
 
   <!-- Header -->
-  <header class="bg-white border-b border-gray-200 shadow-sm p-4 flex justify-between items-center">
-    <div class="flex items-center gap-2">
-      <!-- Mobile Back Button -->
-      <button onclick="goBackOrHome()" 
-              class="sm:hidden text-gray-700 bg-gray-100 px-3 py-1 rounded border border-gray-300 hover:bg-gray-200 transition">
-        ← Back
-      </button>
-      <h1 class="text-lg sm:text-xl font-semibold text-gray-800">Customer Registration</h1>
+<header class="bg-white border-b border-gray-200">
+  <div class="max-w-6xl mx-auto flex justify-between items-center p-4">
+    <!-- Left side: logo/title -->
+    <div class="flex items-center gap-3">
+      <h1 class="text-xl sm:text-2xl font-semibold">Self Service Ordering</h1>
     </div>
 
-    <!-- Nav Buttons (absolute paths) -->
-    <div class="flex gap-2">
-      <a href="/Customer/customer_main.html"
-         class="bg-gray-100 text-gray-800 px-3 py-1 rounded border border-gray-300 hover:bg-gray-200 transition text-sm">
-         Home
-      </a>
-      <a href="/Customer/customer_menu.html"
-         class="bg-gray-100 text-gray-800 px-3 py-1 rounded border border-gray-300 hover:bg-gray-200 transition text-sm">
-         Menu
-      </a>
-    </div>
-  </header>
+    <!-- Right side: navigation buttons -->
+    <nav class="flex items-center gap-2 ml-auto">
+      <a href="customer_main.html"
+         class="bg-gray-100 text-gray-800 px-3 py-1 rounded-md hover:bg-gray-200 transition">Home</a>
+    </nav>
+  </div>
+</header>
 
   <!-- Registration Box -->
   <main class="flex-grow flex items-center justify-center p-4">
@@ -66,7 +58,7 @@
 
         <p class="text-center text-sm text-gray-600 mt-3">
           Already have an account?
-          <a href="/Customer/customer_login.html" class="text-blue-600 hover:underline">Login here</a>
+          <a href="customer_login.html" class="text-blue-600 hover:underline">Login here</a>
         </p>
       </form>
     </div>

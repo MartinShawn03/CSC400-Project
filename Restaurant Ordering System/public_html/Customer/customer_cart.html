@@ -9,193 +9,187 @@
 
 <body class="bg-gray-50 text-gray-800 font-sans min-h-screen flex flex-col">
 
-  <!-- Header -->
+<!-- Header -->
 <header class="bg-white border-b border-gray-200">
   <div class="max-w-6xl mx-auto flex justify-between items-center p-4">
-    <!-- Left side: logo/title -->
-    <div class="flex items-center gap-3">
-      <h1 class="text-xl sm:text-2xl font-semibold">Self Service Ordering</h1>
-    </div>
+    <h1 class="text-xl sm:text-2xl font-semibold">Self Service Ordering</h1>
 
-    <!-- Right side: navigation buttons -->
-    <nav class="flex items-center gap-2 ml-auto">
-      <a href="customer_main.html"
-         class="bg-gray-100 text-gray-800 px-3 py-1 rounded-md hover:bg-gray-200 transition">Home</a>
-      <a href="customer_order.html"
-         class="bg-green-600 text-white px-3 py-1 rounded-md hover:bg-green-700 transition">My Orders</a>
-      <a href="customer_login.html"
-         class="bg-blue-100 text-gray-800 px-3 py-1 rounded-md hover:bg-blue-200 transition">Login</a>
-    </nav>
+    <div class="relative">
+      <button id="menuButton"
+              class="flex items-center justify-center w-10 h-10 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition focus:outline-none">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none"
+             viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+      </button>
+
+      <!-- Dropdown menu -->
+      <div id="menuDropdown"
+           class="hidden absolute right-0 mt-2 w-44 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden z-50">
+        <a href="customer_login.html"
+           id="loginLogoutLink"
+           class="block px-4 py-2 text-gray-700 hover:bg-gray-100">Login</a>
+        <a href="customer_menu.html"
+           class="block px-4 py-2 text-gray-700 hover:bg-gray-100">Browse Menu</a>
+        <a href="customer_main.html"
+           class="block px-4 py-2 text-gray-700 hover:bg-gray-100 border-t">Home</a>
+      </div>
+    </div>
   </div>
 </header>
 
-  <!-- Main -->
-  <main class="flex-grow max-w-4xl mx-auto p-4 sm:p-6">
-    <section id="cartContainer" class="space-y-4">
-      <p class="text-center text-gray-500">Loading your cart...</p>
-    </section>
+<!-- Main -->
+<main class="flex-grow max-w-4xl mx-auto p-4 sm:p-6">
+  <section id="cartContainer" class="space-y-4">
+    <p class="text-center text-gray-500">Loading your cart...</p>
+  </section>
 
-    <!-- Cart Summary -->
-    <div id="cartSummary" class="mt-8 text-right hidden">
-      <p class="text-lg font-semibold text-gray-800">Total: <span id="totalPrice">$0.00</span></p>
-      <button onclick="goToCheckout()"
-              class="mt-4 bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 transition">
-        Proceed to Checkout
-      </button>
-    </div>
-  </main>
+  <!-- Cart Summary -->
+  <div id="cartSummary" class="mt-8 text-right hidden">
+    <p class="text-lg font-semibold text-gray-800">Total: <span id="totalPrice">$0.00</span></p>
+    <button onclick="goToCheckout()"
+            class="mt-4 bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 transition">
+      Proceed to Checkout
+    </button>
+  </div>
+</main>
 
-  <footer class="bg-white border-t border-gray-200 mt-10">
-    <div class="max-w-6xl mx-auto p-4 text-center text-xs text-gray-500">
-      &copy; 2025 Self Service Ordering. All rights reserved.
-    </div>
-  </footer>
+<footer class="bg-white border-t border-gray-200 mt-10">
+  <div class="max-w-6xl mx-auto p-4 text-center text-xs text-gray-500">
+    &copy; 2025 Self Service Ordering. All rights reserved.
+  </div>
+</footer>
 
 <!-- Customer Session Management -->
 <script>
 const CustomerSession = {
-    // Check if user is logged in
-    isLoggedIn() {
-        return localStorage.getItem('customerLoggedIn') === 'true';
-    },
+  isLoggedIn() {
+    return localStorage.getItem('customerLoggedIn') === 'true';
+  },
 
-    // Get customer data
-    getCustomer() {
-        const data = localStorage.getItem('customerData');
-        return data ? JSON.parse(data) : null;
-    },
+  getCustomer() {
+    const data = localStorage.getItem('customerData');
+    return data ? JSON.parse(data) : null;
+  },
 
-    // Set customer session after login
-    setSession(customerData) {
-        localStorage.setItem('customerLoggedIn', 'true');
-        localStorage.setItem('customerData', JSON.stringify(customerData));
-        localStorage.setItem('customerEmail', customerData.email);
-    },
+  setSession(customerData) {
+    localStorage.setItem('customerLoggedIn', 'true');
+    localStorage.setItem('customerData', JSON.stringify(customerData));
+    localStorage.setItem('customerEmail', customerData.email);
+  },
 
-    // Clear session on logout
-    clearSession() {
-        localStorage.removeItem('customerLoggedIn');
-        localStorage.removeItem('customerData');
-        localStorage.removeItem('customerEmail');
-
-        // Also call server logout
-        fetch('/api/logout', { method: 'POST' });
-    },
-
-    // Auto-populate checkout form if logged in
-    populateCheckoutForm() {
-        if (this.isLoggedIn() && document.getElementById('custName')) {
-            const customer = this.getCustomer();
-            document.getElementById('custName').value = customer.name || '';
-            document.getElementById('custEmail').value = customer.email || '';
-            // Make email read-only if logged in
-            document.getElementById('custEmail').readOnly = true;
-        }
-    },
-
-    // Update navigation based on login status
-    updateNavigation() {
-        const loginBtn = document.querySelector('a[href="customer_login.html"]');
-        const ordersBtn = document.querySelector('a[href="customer_order.html"]');
-
-        if (loginBtn) {
-            if (this.isLoggedIn()) {
-                loginBtn.textContent = 'Logout';
-                loginBtn.href = '#';
-                loginBtn.onclick = (e) => {
-                    e.preventDefault();
-                    this.clearSession();
-                    window.location.href = 'customer_main.html';
-                };
-            } else {
-                loginBtn.textContent = 'Login';
-                loginBtn.href = 'customer_login.html';
-                loginBtn.onclick = null;
-            }
-        }
-    }
+  clearSession() {
+    localStorage.removeItem('customerLoggedIn');
+    localStorage.removeItem('customerData');
+    localStorage.removeItem('customerEmail');
+    fetch('/api/logout', { method: 'POST' });
+  }
 };
 
-// Initialize session management on page load
+// Dropdown menu control
 document.addEventListener('DOMContentLoaded', () => {
-    CustomerSession.updateNavigation();
+  const menuButton = document.getElementById('menuButton');
+  const menuDropdown = document.getElementById('menuDropdown');
+  const loginLogoutLink = document.getElementById('loginLogoutLink');
+
+  // Toggle dropdown
+  menuButton.addEventListener('click', () => {
+    menuDropdown.classList.toggle('hidden');
+  });
+
+  // Close dropdown when clicking outside
+  document.addEventListener('click', (event) => {
+    if (!menuButton.contains(event.target) && !menuDropdown.contains(event.target)) {
+      menuDropdown.classList.add('hidden');
+    }
+  });
+
+  // Login / Logout logic
+  if (CustomerSession.isLoggedIn()) {
+    loginLogoutLink.textContent = 'Logout';
+    loginLogoutLink.href = '#';
+    loginLogoutLink.addEventListener('click', (e) => {
+      e.preventDefault();
+      CustomerSession.clearSession();
+      window.location.href = 'customer_main.html';
+    });
+  } else {
+    loginLogoutLink.textContent = 'Login';
+    loginLogoutLink.href = 'customer_login.html';
+  }
 });
 </script>
 
 <!-- Cart Logic -->
 <script>
 const Cart = {
-    items: JSON.parse(localStorage.getItem('cartItems')) || [],
+  items: JSON.parse(localStorage.getItem('cartItems')) || [],
 
-    save() {
-        localStorage.setItem('cartItems', JSON.stringify(this.items));
-    },
+  save() {
+    localStorage.setItem('cartItems', JSON.stringify(this.items));
+  },
 
-    removeItem(id) {
-        this.items = this.items.filter(i => i.id !== id);
-        this.save();
-        renderCart();
-    },
+  removeItem(id) {
+    this.items = this.items.filter(i => i.id !== id);
+    this.save();
+    renderCart();
+  },
 
-    updateQty(id, newQty) {
-        const item = this.items.find(i => i.id === id);
-        if (item) {
-            item.qty = Math.max(1, newQty); // Minimum 1
-            this.save();
-            renderCart();
-        }
-    },
-
-    getTotalPrice() {
-        return this.items.reduce((sum, item) => sum + item.priceCents * item.qty, 0) / 100;
-    },
-
-    clear() {
-        this.items = [];
-        this.save();
-        renderCart();
+  updateQty(id, newQty) {
+    const item = this.items.find(i => i.id === id);
+    if (item) {
+      item.qty = Math.max(1, newQty);
+      this.save();
+      renderCart();
     }
+  },
+
+  getTotalPrice() {
+    return this.items.reduce((sum, item) => sum + item.priceCents * item.qty, 0) / 100;
+  },
+
+  clear() {
+    this.items = [];
+    this.save();
+    renderCart();
+  }
 };
 
-// Render Cart
 function renderCart() {
-    const container = document.getElementById('cartContainer');
-    const summary = document.getElementById('cartSummary');
-    const totalEl = document.getElementById('totalPrice');
+  const container = document.getElementById('cartContainer');
+  const summary = document.getElementById('cartSummary');
+  const totalEl = document.getElementById('totalPrice');
 
-    if (Cart.items.length === 0) {
-        container.innerHTML = '<p class="text-center text-gray-500">Your cart is empty.</p>';
-        summary.classList.add('hidden');
-        return;
-    }
+  if (Cart.items.length === 0) {
+    container.innerHTML = '<p class="text-center text-gray-500">Your cart is empty.</p>';
+    summary.classList.add('hidden');
+    return;
+  }
 
-    // Show cart summary
-    summary.classList.remove('hidden');
-    totalEl.textContent = `$${Cart.getTotalPrice().toFixed(2)}`;
+  summary.classList.remove('hidden');
+  totalEl.textContent = `$${Cart.getTotalPrice().toFixed(2)}`;
 
-    // Build cart items
-    container.innerHTML = Cart.items.map(item => `
-        <div class="bg-white shadow border border-gray-200 rounded-lg p-4 flex justify-between items-center">
-            <div>
-                <h3 class="font-semibold text-gray-800">${item.name}</h3>
-                <p class="text-sm text-gray-600 mt-1">$${(item.priceCents / 100).toFixed(2)} each</p>
-            </div>
+  container.innerHTML = Cart.items.map(item => `
+    <div class="bg-white shadow border border-gray-200 rounded-lg p-4 flex justify-between items-center">
+      <div>
+        <h3 class="font-semibold text-gray-800">${item.name}</h3>
+        <p class="text-sm text-gray-600 mt-1">$${(item.priceCents / 100).toFixed(2)} each</p>
+      </div>
 
-            <div class="flex items-center gap-3">
-                <button class="bg-gray-200 px-2 rounded text-lg" onclick="Cart.updateQty('${item.id}', ${item.qty - 1})">−</button>
-                <span class="font-medium">${item.qty}</span>
-                <button class="bg-gray-200 px-2 rounded text-lg" onclick="Cart.updateQty('${item.id}', ${item.qty + 1})">+</button>
-                <button class="text-red-500 hover:text-red-700 ml-3" onclick="Cart.removeItem('${item.id}')">🗑️</button>
-            </div>
-        </div>
-    `).join('');
+      <div class="flex items-center gap-3">
+        <button class="bg-gray-200 px-2 rounded text-lg" onclick="Cart.updateQty('${item.id}', ${item.qty - 1})">−</button>
+        <span class="font-medium">${item.qty}</span>
+        <button class="bg-gray-200 px-2 rounded text-lg" onclick="Cart.updateQty('${item.id}', ${item.qty + 1})">+</button>
+        <button class="text-red-500 hover:text-red-700 ml-3" onclick="Cart.removeItem('${item.id}')">🗑️</button>
+      </div>
+    </div>
+  `).join('');
 }
 
 function goToCheckout() {
-    window.location.href = 'customer_checkout.html';
+  window.location.href = 'customer_checkout.html';
 }
 
-// Initialize cart on page load
 document.addEventListener('DOMContentLoaded', renderCart);
 </script>
 
