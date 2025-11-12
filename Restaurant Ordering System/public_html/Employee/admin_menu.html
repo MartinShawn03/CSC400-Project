@@ -16,14 +16,23 @@
     <!-- Add new menu item -->
     <section class="mb-8">
       <h2 class="text-xl font-semibold text-gray-800 mb-4">Add New Menu Item</h2>
-      <form id="addForm" class="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-white shadow p-4 rounded-lg">
+   <!--   <form id="addForm" class="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-white shadow p-4 rounded-lg" enctype="multipart/form-data" >
         <input type="text" id="item_name" placeholder="Item name" required class="border p-2 rounded">
         <input type="text" id="category" placeholder="Category" class="border p-2 rounded">
         <input type="number" id="price" placeholder="Price" step="0.01" required class="border p-2 rounded">
         <input type="text" id="description" placeholder="Description" class="border p-2 rounded col-span-full">
+        <input type="file" id="image" name="image" accept="image/*" required class="border p-2 rounded col-span-full"></input> 
+        <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 col-span-full">Add Item</button>
+      </form> -->
+      <form id="addForm" class="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-white shadow p-4 rounded-lg" enctype="multipart/form-data">
+        <input type="text" id="item_name" name="item_name" placeholder="Item name" required class="border p-2 rounded">
+        <input type="text" id="category" name="category" placeholder="Category" class="border p-2 rounded">
+        <input type="number" id="price" name="price" placeholder="Price" step="0.01" required class="border p-2 rounded">
+        <input type="text" id="description" name="description" placeholder="Description" class="border p-2 rounded col-span-full">
         <input type="file" id="image" name="image" accept="image/*" required class="border p-2 rounded col-span-full">
         <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 col-span-full">Add Item</button>
       </form>
+
     </section>
 
     <!-- Current Menu -->
@@ -45,7 +54,7 @@
           card.className = "bg-white shadow rounded-lg p-4 flex flex-col justify-between";
           const badgeColor = item.available ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
           const badgeText = item.available ? 'Available' : 'Hidden';
-          const imagePath = item.image ? `/image/${item.image}` : '/image/no_image.png';
+          const imagePath = item.image || '/image/no_image.png';
           card.innerHTML = `
             <div>
               <img src="${imagePath}" alt="${item.item_name}" class="w-full h-40 object-cover rounded mb-3 border">
@@ -74,6 +83,9 @@
       }
     }
 
+
+
+
     async function toggleItem(id, available) {
       const res = await fetch('/Employee/menu/' + id, {
         method: 'PUT',
@@ -92,31 +104,8 @@
       if (result.success) loadMenu();
       else alert(result.message || 'Delete failed.');
     }
-<!--
-    document.getElementById('addForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const item = {
-        item_name: document.getElementById('item_name').value,
-        description: document.getElementById('description').value,
-        price: document.getElementById('price').value,
-        category: document.getElementById('category').value
-      };
 
-      const res = await fetch('/Employee/menu', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(item)
-      });
-      const result = await res.json();
-      if (result.success) {
-        e.target.reset();
-        loadMenu();
-      } else {
-        alert(result.message || 'Add failed.');
-      }
-    });
--->
-   document.getElementById('addForm').addEventListener('submit', async (e) => {
+  document.getElementById('addForm').addEventListener('submit', async (e) => {
       e.preventDefault();
 
       const form = e.target;
@@ -135,8 +124,6 @@
         alert(result.message || 'Add failed.');
       }
     });   
-
-
 
     loadMenu();
   </script>
