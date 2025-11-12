@@ -64,9 +64,7 @@
           card.className = "bg-white shadow rounded-lg overflow-hidden flex flex-col";
 
           card.innerHTML = `
-            <img src="${item.image_url || 'https://via.placeholder.com/300x200'}"
-                 alt="${item.item_name}" class="w-full h-40 object-cover">
-            <div class="p-4 flex flex-col flex-grow">
+              <img src="/image/${item.image}" alt="${item.item_name}" class="w-full h-40 object-cover">
               <h2 class="text-lg font-semibold text-gray-800">${item.item_name}</h2>
               <p class="text-gray-600 text-sm flex-grow">${item.description || "No description"}</p>
               <p class="text-gray-900 font-bold mt-2">$${item.price}</p>
