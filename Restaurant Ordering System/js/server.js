@@ -3,7 +3,6 @@ const fs = require('fs');
 const path = require('path');
 const mysql = require('mysql2');
 const { randomBytes } = require('crypto');
-const bcrypt = require('bcrypt');
 const formidable = require('formidable');
 const bcrypt = require('bcrypt');
 const QRCode = require('qrcode');
@@ -137,31 +136,10 @@ if (req.method === 'POST' && (reqPath === '/Employee/login' || reqPath === '/emp
             return res.end(JSON.stringify({ success: false, message: 'Error verifying password' }));
           }
 
-          if (!results.length) {
+          if (!isMatch) {
             res.writeHead(401, { 'Content-Type': 'application/json' });
-            return res.end(JSON.stringify({ success: false, message: 'User not found' }));
+            return res.end(JSON.stringify({ success: false, message: 'Invalid password' }));
           }
-
-          const employee = results[0];
-
-          bcrypt.compare(password, employee.password, (err, isMatch) => {
-            if (err) {
-              console.error('Compare Error:', err);
-              res.writeHead(500, { 'Content-Type': 'application/json' });
-              return res.end(JSON.stringify({ success: false, message: 'Error verifying password' }));
-            }
-
-          res.writeHead(200, {
-            'Content-Type': 'application/json',
-            // FIX: Clear customer session when employee logs in
-            'Set-Cookie': [
-              `session=${token}; HttpOnly; Path=/; Max-Age=3600`,
-              `cust_session=; HttpOnly; Path=/; Max-Age=0` // Clear customer session
-            ]
-            if (!isMatch) {
-              res.writeHead(401, { 'Content-Type': 'application/json' });
-              return res.end(JSON.stringify({ success: false, message: 'Invalid password' }));
-            }
 
             // Create session token
             const token = randomBytes(16).toString('hex');
@@ -170,11 +148,14 @@ if (req.method === 'POST' && (reqPath === '/Employee/login' || reqPath === '/emp
               username: employee.username,
               role: employee.role || 'Cashier'
             };
-
             res.writeHead(200, {
-              'Content-Type': 'application/json',
-              'Set-Cookie': `session=${token}; HttpOnly; Path=/; Max-Age=3600`
-            });
+            'Content-Type': 'application/json',
+            // FIX: Clear customer session when employee logs in
+            'Set-Cookie': [
+              `session=${token}; HttpOnly; Path=/; Max-Age=3600`,
+              `cust_session=; HttpOnly; Path=/; Max-Age=0` // Clear customer session
+            ]
+          });
             res.end(JSON.stringify({ success: true, role: employee.role }));
           });
         });
@@ -298,8 +279,6 @@ if (req.method === 'POST' && reqPath === '/Employee/validate-email') {
   return;
 }
 
-// ADMIN: Register New Employee
-if (req.method === 'POST' && reqPath === '/Employee/register') {
   // ADMIN: Register New Employee
   if (req.method === 'POST' && reqPath === '/Employee/register') {
     const cookie = req.headers.cookie || '';
