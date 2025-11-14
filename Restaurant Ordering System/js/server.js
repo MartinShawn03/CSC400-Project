@@ -24,52 +24,6 @@ const connection_pool = mysql.createPool({
 const sessions = {};
 const customerSessions = {};
 
-/*
-// Email domain validation function
-  function validateEmailDomain(email) {
-  const domain = email.split('@')[1];
-  
-  // Simple domain format check
-  const domainRegex = /^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-  if (!domainRegex.test(domain)) {
-    return {
-      isValid: false,
-      reason: 'Invalid domain format',
-      details: `Domain '${domain}' is not properly formatted`
-    };
-  }
-
-  // Common disposable email domains
-  const disposableDomains = [
-    'tempmail.com', 'throwaway.com', 'fake.com', 'guerrillamail.com',
-    'mailinator.com', '10minutemail.com', 'yopmail.com', 'trashmail.com'
-  ];
-  
-  if (disposableDomains.includes(domain)) {
-    return {
-      isValid: false,
-      reason: 'Disposable email domain',
-      details: 'Temporary/disposable email addresses are not allowed'
-    };
-  }
-
-  return {
-    isValid: true,
-    reason: 'Email format and domain appear valid',
-    details: `Domain '${domain}' is recognized and should be able to receive emails`
-  };
-}
-
-// Password generation function
-function generateSecurePassword() {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  let password = '';
-  for (let i = 0; i < 10; i++) {
-    password += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return password;
-}
-*/
 const server = http.createServer((req, res) => {
   let reqPath = decodeURIComponent(req.url.split('?')[0]);
 
@@ -308,9 +262,6 @@ if (req.method === 'POST' && (reqPath === '/Employee/login' || reqPath === '/emp
     return;
   }
 
-
-
-
   // ---------- ADMIN: Get all employees ----------
   if (req.method === 'GET' && reqPath === '/Employee/list') {
     const session = getSessionFromCookie();
@@ -422,7 +373,7 @@ if (req.method === 'POST' && (reqPath === '/Employee/login' || reqPath === '/emp
       res.writeHead(400, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ success: false, message: 'Form parse error' }));
     }
-    
+
     const item_name = Array.isArray(fields.item_name) ? fields.item_name[0] : fields.item_name || '';
     const description = Array.isArray(fields.description) ? fields.description[0] : fields.description || '';
     const price = Array.isArray(fields.price) ? fields.price[0] : fields.price || '';
