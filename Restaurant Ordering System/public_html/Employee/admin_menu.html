@@ -9,7 +9,11 @@
 <body class="bg-gray-50 font-sans min-h-screen">
   <header class="bg-white shadow p-4 flex justify-between items-center">
     <h1 class="text-2xl font-bold text-gray-800">Admin Menu Management</h1>
-    <a href="/Employee/admin_main.html" class="text-blue-600 hover:underline">← Back to Dashboard</a>
+<a href="/Employee/admin_main.html"
+   class="bg-gray-100 text-gray-800 px-4 py-2 rounded-md border border-gray-300 
+          hover:bg-gray-200 transition text-sm flex items-center gap-2">
+  ← Back to Dashboard
+</a>
   </header>
 
   <main class="p-6 max-w-5xl mx-auto">
@@ -66,16 +70,38 @@ setupAddForm();
 loadMenu();
 });
 
-    function loadCategoryDropdown() {
-      if (!categorySelect) return;
-      categorySelect.innerHTML = "";
-      defaultCategories.forEach(cat => {
-        const opt = document.createElement("option");
-        opt.value = cat;
-        opt.textContent = cat;
-        categorySelect.appendChild(opt);
-      });
+async function loadCategoryDropdown() {
+  if (!categorySelect) return;
+
+  categorySelect.innerHTML = "";
+
+  // Start with default categories
+  let categories = [...defaultCategories];
+
+  try {
+    const res = await fetch("/api/menu");
+    const data = await res.json();
+    if (data.success && data.items.length) {
+      const dbCategories = [...new Set(
+        data.items
+          .map(i => i.category)
+          .filter(c => c && c.trim() !== "")
+      )];
+
+      categories = [...new Set([...categories, ...dbCategories])];
     }
+  } catch (err) {
+    console.error("Category load error:", err);
+  }
+
+  categories.sort().forEach(cat => {
+    const opt = document.createElement("option");
+    opt.value = cat;
+    opt.textContent = cat;
+    categorySelect.appendChild(opt);
+  });
+}
+
 
     function setupCategoryModal() {
       const addBtn = document.getElementById("addCategoryBtn");
@@ -95,27 +121,26 @@ loadMenu();
       });
 
 saveBtn.addEventListener("click", () => {
-  const newCat = document.getElementById("newCategoryInput").value.trim();
+  const input = document.getElementById("newCategoryInput");
+  const newCat = input.value.trim();
 
   if (!newCat) {
     alert("Enter a category name.");
     return;
   }
 
-  // Add new category
-  defaultCategories.push(newCat);
+  if (!defaultCategories.includes(newCat)) {
+    defaultCategories.push(newCat);
+  }
 
-  // Reload dropdown
   loadCategoryDropdown();
 
-  // Auto-select the new category
   categorySelect.value = newCat;
 
-  // Close modal
+  input.value = "";
   modal.classList.add("hidden");
   modal.classList.remove("flex");
 });
-
 }
 
     async function loadMenu() {
