@@ -11,19 +11,36 @@
   <!-- Header -->
   <header class="bg-white shadow p-4 flex justify-between items-center">
     <h1 class="text-2xl font-bold text-gray-800">Employee Menu</h1>
-    <nav class="flex gap-3">
-      <a href="employee_main.html" class="text-blue-600 hover:underline">Home</a>
-      <a href="employee_order.html" class="text-blue-600 hover:underline">View Orders</a>
-      <a href="employee_login.html" class="text-blue-600 hover:underline">Logout</a>
-    </nav>
+    <div class="flex gap-2">
+      <a href="employee_main.html"
+      class="bg-gray-100 text-gray-800 px-3 py-1 rounded border border-gray-300 hover:bg-gray-200 transition text-sm">
+      Home
+      </a>
+      <a href="employee_order.html"
+         class="bg-gray-100 text-gray-800 px-3 py-1 rounded border border-gray-300 hover:bg-gray-200 transition text-sm">
+         View Orders
+      </a>
+      <a href="employee_login.html"
+         class="bg-blue-600 text-white px-3 py-1 rounded shadow hover:bg-blue-700 transition text-sm">
+         Logout
+      </a>
+    </div>
   </header>
   
   <!-- Main Section -->
   <main class="p-6 max-w-6xl mx-auto text-center">
     <h2 class="text-xl font-semibold text-gray-700 mb-6">Available Menu Items</h2>
+<!-- Category Filter -->
+<div class="flex justify-end mb-6">
+  <select id="categoryFilter"
+          class="border px-3 py-2 rounded-lg bg-white shadow-sm">
+    <option value="all">All Categories</option>
+  </select>
+</div>
 
-    <!-- Menu Grid -->
-    <section id="menuGrid" class="grid gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4"></section>
+
+<!-- Grouped Menu Container -->
+<div id="menuContainer" class="space-y-10"></div>
 
   </main>
 
@@ -174,52 +191,108 @@ document.getElementById('modalConfirm').addEventListener('click', async () => {
 });
 
     // Load menu items from database
-    async function loadMenu() {
-      try {
-        const res = await fetch("/api/menu");
-        const data = await res.json();
-        const grid = document.getElementById("menuGrid");
-        grid.innerHTML = "";
+let allMenuItems = [];
 
-        if (!data.success || !data.items.length) {
-          grid.innerHTML = `<p class="text-gray-500 col-span-full">No menu items available.</p>`;
-          return;
-        }
+async function loadMenu() {
+  try {
+    const res = await fetch("/api/menu");
+    const data = await res.json();
 
-        data.items.forEach(item => {
-          const card = document.createElement("div");
-          card.className = "bg-white shadow rounded-lg overflow-hidden flex flex-col";
-
-          card.innerHTML = `
-            <img src="${item.image_url || 'https://via.placeholder.com/300x200'}"
-                 alt="${item.item_name}" class="w-full h-40 object-cover">
-            <div class="p-4 flex flex-col flex-grow">
-              <h2 class="text-lg font-semibold text-gray-800">${item.item_name}</h2>
-              <p class="text-gray-600 text-sm flex-grow">${item.description || "No description"}</p>
-              <p class="text-gray-900 font-bold mt-2">$${item.price}</p>
-              <button class="bg-blue-600 text-white px-3 py-1 rounded mt-2 hover:bg-blue-700">
-                Add Order
-              </button>
-            </div>
-          `;
-
-
-          card.querySelector("button").addEventListener("click", () => {
-            openModal({
-              item_id: item.item_id,
-              item_name: item.item_name,
-              price: item.price
-            });
-          });
-
-          grid.appendChild(card);
-        });
-      } catch {
-        showToast("Failed to load menu", "error");
-      }
+    if (!data.success) {
+      showToast("Failed to load menu", "error");
+      return;
     }
 
-    document.addEventListener("DOMContentLoaded", loadMenu);
+    allMenuItems = data.items || [];
+
+    populateCategoryFilter();  
+    renderMenu("all");
+
+  } catch {
+    showToast("Failed to load menu", "error");
+  }
+}
+
+function populateCategoryFilter() {
+  const select = document.getElementById("categoryFilter");
+  select.innerHTML = `<option value="all">All Categories</option>`;
+
+  const categories = [...new Set(
+    allMenuItems
+      .map(i => i.category)
+      .filter(c => c && c.trim() !== "")
+  )].sort();
+
+  categories.forEach(cat => {
+    const opt = document.createElement("option");
+    opt.value = cat;
+    opt.textContent = cat;
+    select.appendChild(opt);
+  });
+}
+
+function renderMenu(selectedCategory = "all") {
+  const container = document.getElementById("menuContainer");
+  container.innerHTML = "";
+
+  const filtered = selectedCategory === "all"
+    ? allMenuItems
+    : allMenuItems.filter(i => i.category === selectedCategory);
+
+  const groups = {};
+  filtered.forEach(item => {
+    const cat = item.category || "Other";
+    if (!groups[cat]) groups[cat] = [];
+    groups[cat].push(item);
+  });
+
+  const sortedCategories = Object.keys(groups).sort();
+
+  sortedCategories.forEach(cat => {
+    const section = document.createElement("section");
+
+    const itemsHtml = groups[cat].map(item => `
+      <div class="bg-white shadow rounded-lg overflow-hidden flex flex-col border border-gray-200">
+        <img src="/image/${item.image}" 
+             class="w-full h-40 object-cover"/>
+
+        <div class="p-4 flex flex-col flex-grow">
+          <h3 class="font-semibold text-gray-900">${item.item_name}</h3>
+          <p class="text-xs text-gray-600 flex-grow">${item.description || ""}</p>
+
+          <div class="flex justify-between items-center mt-3">
+            <span class="font-bold text-gray-800">$${Number(item.price).toFixed(2)}</span>
+
+            <!-- Employee ADD BUTTON (opens modal instead of adding directly) -->
+            <button class="bg-blue-600 text-white px-3 py-1 rounded-md text-sm hover:bg-blue-700 transition"
+              onclick='openModal(${JSON.stringify(item)})'>
+              Add Order
+            </button>
+
+          </div>
+        </div>
+      </div>
+    `).join("");
+
+    section.innerHTML = `
+      <h2 class="text-xl font-bold mb-3 text-left">${cat}</h2>
+      <div class="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+        ${itemsHtml}
+      </div>
+    `;
+
+    container.appendChild(section);
+  });
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  loadMenu();
+
+  document.getElementById("categoryFilter").addEventListener("change", (e) => {
+    renderMenu(e.target.value);
+  });
+});
+
   </script>
 </body>
 </html>
