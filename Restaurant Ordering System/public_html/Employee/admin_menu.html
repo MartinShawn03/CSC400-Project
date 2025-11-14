@@ -16,73 +16,181 @@
     <!-- Add new menu item -->
     <section class="mb-8">
       <h2 class="text-xl font-semibold text-gray-800 mb-4">Add New Menu Item</h2>
-   <!--   <form id="addForm" class="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-white shadow p-4 rounded-lg" enctype="multipart/form-data" >
-        <input type="text" id="item_name" placeholder="Item name" required class="border p-2 rounded">
-        <input type="text" id="category" placeholder="Category" class="border p-2 rounded">
-        <input type="number" id="price" placeholder="Price" step="0.01" required class="border p-2 rounded">
-        <input type="text" id="description" placeholder="Description" class="border p-2 rounded col-span-full">
-        <input type="file" id="image" name="image" accept="image/*" required class="border p-2 rounded col-span-full"></input> 
-        <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 col-span-full">Add Item</button>
-      </form> -->
-      <form id="addForm" class="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-white shadow p-4 rounded-lg" enctype="multipart/form-data">
-        <input type="text" id="item_name" name="item_name" placeholder="Item name" required class="border p-2 rounded">
-        <input type="text" id="category" name="category" placeholder="Category" class="border p-2 rounded">
+    <form id="addForm" class="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-white shadow p-4 rounded-lg" enctype="multipart/form-data" >
+        <input type="text" id="item_name" name="item_name" placeholder= "Item name" required class="border p-2 rounded">
+	<!-- Category Dropdown -->
+	<div class="flex gap-2 col-span-full">
+  <select id="category" name="category" class="border p-2 rounded w-full">
+    <!-- Filled by JS -->
+  </select>
+
+  <button type="button"
+          id="addCategoryBtn"
+          class="bg-blue-600 text-white px-3 rounded hover:bg-blue-700">
+    + Add
+  </button>
+</div>
         <input type="number" id="price" name="price" placeholder="Price" step="0.01" required class="border p-2 rounded">
         <input type="text" id="description" name="description" placeholder="Description" class="border p-2 rounded col-span-full">
-        <input type="file" id="image" name="image" accept="image/*" required class="border p-2 rounded col-span-full">
+        <input type="file" id="image" name="image" accept="image/*" required class="border p-2 rounded col-span-full"></input> 
         <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 col-span-full">Add Item</button>
       </form>
-
     </section>
 
     <!-- Current Menu -->
     <section>
       <h2 class="text-xl font-semibold text-gray-800 mb-4">Current Menu</h2>
-      <div id="menuList" class="grid gap-4 sm:grid-cols-2 md:grid-cols-3"></div>
+      <div id="menuList" class="space-y-10"></div>
     </section>
   </main>
 
-  <script>
+<script>
+let defaultCategories = [
+  "Appetizers",
+  "Entrees",
+  "Desserts",
+  "Drinks",
+  "Sides",
+  "Salads",
+  "Soups",
+  "Kids Menu"
+];
+
+let categorySelect = null;
+
+document.addEventListener("DOMContentLoaded", () => {
+  categorySelect = document.getElementById("category");
+ loadCategoryDropdown();
+setupCategoryModal();
+setupAddForm();
+loadMenu();
+});
+
+    function loadCategoryDropdown() {
+      if (!categorySelect) return;
+      categorySelect.innerHTML = "";
+      defaultCategories.forEach(cat => {
+        const opt = document.createElement("option");
+        opt.value = cat;
+        opt.textContent = cat;
+        categorySelect.appendChild(opt);
+      });
+    }
+
+    function setupCategoryModal() {
+      const addBtn = document.getElementById("addCategoryBtn");
+      const modal = document.getElementById("categoryModal");
+      const cancelBtn = document.getElementById("cancelCategory");
+      const saveBtn = document.getElementById("saveCategory");
+
+      addBtn.addEventListener("click", () => {
+        modal.classList.remove("hidden");
+        modal.classList.add("flex");
+        document.getElementById("newCategoryInput").value = "";
+      });
+
+      cancelBtn.addEventListener("click", () => {
+        modal.classList.add("hidden");
+        modal.classList.remove("flex");
+      });
+
+saveBtn.addEventListener("click", () => {
+  const newCat = document.getElementById("newCategoryInput").value.trim();
+
+  if (!newCat) {
+    alert("Enter a category name.");
+    return;
+  }
+
+  // Add new category
+  defaultCategories.push(newCat);
+
+  // Reload dropdown
+  loadCategoryDropdown();
+
+  // Auto-select the new category
+  categorySelect.value = newCat;
+
+  // Close modal
+  modal.classList.add("hidden");
+  modal.classList.remove("flex");
+});
+
+}
+
     async function loadMenu() {
       const res = await fetch('/Employee/menu');
       const data = await res.json();
       const list = document.getElementById('menuList');
       list.innerHTML = '';
-      if (data.success && data.items.length > 0) {
-        data.items.forEach(item => {
-          const card = document.createElement('div');
-          card.className = "bg-white shadow rounded-lg p-4 flex flex-col justify-between";
-          const badgeColor = item.available ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
-          const badgeText = item.available ? 'Available' : 'Hidden';
-          const imagePath = item.image || '/image/no_image.png';
-          card.innerHTML = `
-            <div>
-              <img src="${imagePath}" alt="${item.item_name}" class="w-full h-40 object-cover rounded mb-3 border">
-              <div class="flex justify-between items-center mb-2">
-                <h3 class="text-lg font-bold text-gray-800">${item.item_name}</h3>
-                <span class="px-2 py-1 text-xs rounded ${badgeColor}">${badgeText}</span>
-              </div>
-              <p class="text-sm text-gray-600">${item.description || ''}</p>
-              <p class="font-semibold mt-2">$${parseFloat(item.price).toFixed(2)}</p>
-            </div>
-            <div class="mt-4 flex justify-between">
-              <button onclick="toggleItem(${item.item_id}, ${item.available ? 0 : 1})"
-                      class="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600">
-                ${item.available ? 'Hide' : 'Show'}
-              </button>
-              <button onclick="deleteItem(${item.item_id})"
-                      class="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600">
-                Delete
-              </button>
-            </div>
-          `;
-          list.appendChild(card);
-        });
-      } else {
+      if (!data.success || !data.items.length) {
         list.innerHTML = '<p class="text-gray-500">No menu items found.</p>';
+        return;
       }
-    }
 
+      // Group items by category
+      const groups = {};
+      data.items.forEach(item => {
+        const cat = item.category || "Other";
+        if (!groups[cat]) groups[cat] = [];
+        groups[cat].push(item);
+      });
+
+      const sortedCategories = Object.keys(groups).sort();
+
+      sortedCategories.forEach(cat => {
+        const section = document.createElement("section");
+
+
+
+  const cards = groups[cat].map(item => {
+    const badgeColor = item.available ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
+    const badgeText = item.available ? 'Available' : 'Hidden';
+    const imagePath = item.image || '/image/no_image.png';
+
+return `
+  <div class="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm flex flex-col">
+    <img src="${imagePath}" class="w-full h-48 object-cover">
+
+    <div class="p-4 flex flex-col flex-grow">
+      <div class="flex justify-between items-center mb-1">
+        <h3 class="font-semibold text-gray-900">${item.item_name}</h3>
+        <span class="px-2 py-1 text-xs rounded ${badgeColor}">${badgeText}</span>
+      </div>
+
+      <p class="text-sm text-gray-600 flex-grow">${item.description || ''}</p>
+
+      <p class="font-semibold text-gray-900 mt-2">
+        $${parseFloat(item.price).toFixed(2)}
+      </p>
+
+      <div class="mt-4 flex justify-between">
+        <button onclick="toggleItem(${item.item_id}, ${item.available ? 0 : 1})"
+            class="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600">
+          ${item.available ? 'Hide' : 'Show'}
+        </button>
+
+        <button onclick="deleteItem(${item.item_id})"
+            class="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600">
+          Delete
+        </button>
+      </div>
+    </div>
+  </div>
+`;
+
+  }).join("");
+
+  section.innerHTML = `
+    <h2 class="text-2xl font-bold mb-4">${cat}</h2>
+    <div class="grid gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+      ${cards}
+    </div>
+  `;
+
+  list.appendChild(section);
+});
+}
 
 
 
@@ -105,27 +213,47 @@
       else alert(result.message || 'Delete failed.');
     }
 
-  document.getElementById('addForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
+function setupAddForm() {
+  const form = document.getElementById("addForm");
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const formData = new FormData(form);
 
-      const form = e.target;
-      const formData = new FormData(form);
+    const res = await fetch('/Employee/menu', {
+      method: 'POST',
+      body: formData
+    });
 
-      const res = await fetch('/Employee/menu', {
-        method: 'POST',
-        body: formData
-      });
+    const result = await res.json();
+    if (result.success) {
+      form.reset();
+      loadMenu();
+      loadCategoryDropdown();
+    } else {
+      alert(result.message);
+    }
+  });
+}
+</script>
+<!-- Add Category Modal -->
+<div id="categoryModal"
+     class="fixed inset-0 bg-black bg-opacity-40 hidden items-center justify-center z-50">
+  <div class="bg-white p-6 rounded shadow-md w-80">
+    <h2 class="text-lg font-bold mb-3">Add New Category</h2>
+    <input id="newCategoryInput"
+           type="text"
+           placeholder="Category name"
+           class="border p-2 w-full rounded mb-4">
+    <div class="flex justify-end gap-2">
+      <button id="cancelCategory"
+              class="px-3 py-1 rounded bg-gray-300 hover:bg-gray-400">Cancel</button>
+      <button id="saveCategory"
+              class="px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-700">
+        Save
+      </button>
+    </div>
+  </div>
+</div>
 
-      const result = await res.json();
-      if (result.success) {
-        form.reset();
-        loadMenu();
-      } else {
-        alert(result.message || 'Add failed.');
-      }
-    });   
-
-    loadMenu();
-  </script>
 </body>
 </html>

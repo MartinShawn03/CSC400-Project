@@ -51,10 +51,19 @@
     </a>
   </div>
 
-  <!-- Menu Grid -->
-  <section id="menuGrid" class="grid gap-4 sm:gap-6 grid-cols-2 sm:grid-cols-3 md:grid-cols-4">
-    <p class="col-span-full text-center text-gray-500">Loading menu items...</p>
-  </section>
+<!-- Category Filter -->
+<div class="flex justify-end mb-6">
+  <select id="categoryFilter"
+          class="border px-3 py-2 rounded-lg bg-white shadow-sm">
+    <option value="all">All Categories</option>
+  </select>
+</div>
+
+<!-- Grouped Menu Container -->
+<div id="menuContainer" class="space-y-10">
+    <!-- JS will insert category groups -->
+</div>
+
 
   <div class="hidden sm:flex justify-end mt-8">
     <a href="customer_cart.html"
@@ -127,60 +136,123 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 </script>
 
-<!-- Menu Loading -->
 <script>
-    async function loadMenu() {
-      const menuGrid = document.getElementById('menuGrid');
-      menuGrid.innerHTML = '<p class="col-span-full text-center text-gray-500">Loading menu items...</p>';
+let allMenuItems = [];
 
-      try {
-        const response = await fetch('/api/menu');  // Fetch from server
-        const data = await response.json();
+// Fetch menu from your existing /api/menu route
+async function fetchMenu() {
+  try {
+    const res = await fetch('/api/menu');
+    const data = await res.json();
 
-        if (!data.success || !data.items.length) {
-          menuGrid.innerHTML = '<p class="col-span-full text-center text-gray-500">No items available right now.</p>';
-          return;
-        }
+    if (!data.success) {
+      console.error('Error loading menu:', data.message);
+      return;
+    }
 
-        menuGrid.innerHTML = data.items.map(item => `
-          <div class="bg-white shadow rounded-lg overflow-hidden flex flex-col border border-gray-200">
-            <img src="/image/${item.image}" alt="${item.item_name}" class="w-full h-36 object-cover">
-            <div class="p-4 flex flex-col flex-grow">
-              <h3 class="font-medium text-gray-900">${item.item_name}</h3>
-              <p class="text-xs text-gray-600 flex-grow">${item.description || ''}</p>
-              <div class="flex justify-between items-center mt-2">
-                <span class="font-semibold">$${parseFloat(item.price).toFixed(2)}</span>
-                <button
-                  class="bg-blue-600 text-white px-3 py-1 rounded-md text-sm hover:bg-blue-700 transition"
-                  data-add-to-cart
-                  data-id="${item.item_id}"
-                  data-name="${item.item_name}"
-                  data-price="${item.price}">
-                  Add
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    `).join('');
+    allMenuItems = data.items || [];
 
-    // Add to Cart button logic
-    document.querySelectorAll('[data-add-to-cart]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const { id, name, price } = btn.dataset;
-        const priceCents = Math.round(parseFloat(price) * 100);
-        Cart.addItem({ id, name, priceCents, qty: 1 });
-      });
-    });
+    populateCategoryFilter();
+    renderMenu('all');
   } catch (err) {
-    console.error('Failed to load menu:', err);
-    menuGrid.innerHTML = '<p class="col-span-full text-center text-red-500">Error loading menu.</p>';
+    console.error('API Error:', err);
   }
 }
 
-document.addEventListener('DOMContentLoaded', loadMenu);
+// Fill dropdown with real categories from DB
+function populateCategoryFilter() {
+  const select = document.getElementById('categoryFilter');
+  select.innerHTML = `<option value="all">All Categories</option>`;
+
+  const categories = [...new Set(
+    allMenuItems
+      .map(i => i.category)
+      .filter(c => c && c.trim() !== '')
+  )].sort();
+
+  categories.forEach(cat => {
+    const opt = document.createElement('option');
+    opt.value = cat;
+    opt.textContent = cat;
+    select.appendChild(opt);
+  });
+}
+
+// Render menu grouped by category
+function renderMenu(selectedCategory = 'all') {
+  const container = document.getElementById('menuContainer');
+  container.innerHTML = "";
+
+  // Filter
+  const filtered = selectedCategory === 'all'
+    ? allMenuItems
+    : allMenuItems.filter(i => i.category === selectedCategory);
+
+  // Group
+  const groups = {};
+  filtered.forEach(item => {
+    const cat = item.category || "Other";
+    if (!groups[cat]) groups[cat] = [];
+    groups[cat].push(item);
+  });
+
+  const sortedCategories = Object.keys(groups).sort();
+
+  sortedCategories.forEach(cat => {
+    const section = document.createElement('section');
+
+    const itemsHtml = groups[cat].map(item => `
+      <div class="bg-white shadow rounded-lg overflow-hidden flex flex-col border border-gray-200">
+        <img src="/image/${item.image}" 
+             class="w-full h-40 object-cover"/>
+
+        <div class="p-4 flex flex-col flex-grow">
+          <h3 class="font-semibold text-gray-900">${item.item_name}</h3>
+          <p class="text-xs text-gray-600 flex-grow">${item.description || ''}</p>
+
+          <div class="flex justify-between items-center mt-3">
+            <span class="font-bold text-gray-800">$${Number(item.price).toFixed(2)}</span>
+            <button class="bg-blue-600 text-white px-3 py-1 rounded-md text-sm hover:bg-blue-700 transition"
+              data-add-cart
+              data-id="${item.item_id}"
+              data-name="${item.item_name}"
+              data-price="${item.price}">
+              Add
+            </button>
+          </div>
+        </div>
+      </div>
+    `).join("");
+
+    section.innerHTML = `
+      <h2 class="text-xl font-bold mb-3">${cat}</h2>
+      <div class="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+        ${itemsHtml}
+      </div>
+    `;
+
+    container.appendChild(section);
+  });
+
+  // Re-bind Add to Cart buttons
+  document.querySelectorAll('[data-add-cart]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const { id, name, price } = btn.dataset;
+      const priceCents = Math.round(parseFloat(price) * 100);
+      Cart.addItem({ id, name, priceCents, qty: 1 });
+    });
+  });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  fetchMenu();
+
+  document.getElementById('categoryFilter').addEventListener('change', (e) => {
+    renderMenu(e.target.value);
+  });
+});
 </script>
+
 
 <!-- Cart system -->
 <script>
@@ -199,7 +271,7 @@ const Cart = {
       this.items.push({ id, name, priceCents, qty });
     }
     this.save();
-    this.showToast(`${name} added to cart ✅`);
+    this.showToast(`${name} added to cart `);
   },
 
   showToast(message) {
