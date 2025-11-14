@@ -1,197 +1,174 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Add New Employee</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Employee Registration</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-50 font-sans min-h-screen flex flex-col items-center justify-center">
 
-  <div class="bg-white shadow-xl rounded-2xl p-8 w-full max-w-lg">
-    <h1 class="text-3xl font-bold text-amber-700 mb-6 text-center">Add New Employee</h1>
+<body class="bg-gray-50 font-sans">
 
-    <form id="registerForm" class="space-y-5">
-      <div>
-        <label class="block text-gray-700 font-medium mb-1">Full Name *</label>
-        <input type="text" id="name" required class="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-amber-400">
-      </div>
+<!-- Header -->
+<header class="bg-white shadow p-4 flex justify-between items-center">
+  <h1 class="text-2xl font-bold text-gray-800">Admin Dashboard</h1>
+  <a href="/Employee/admin_main.html" 
+     class="bg-gray-100 text-gray-800 px-4 py-2 rounded hover:bg-gray-200 transition">
+    Back to Dashboard
+  </a>
+</header>
 
-      <div>
-        <label class="block text-gray-700 font-medium mb-1">Username *</label>
-        <input type="text" id="username" required class="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-amber-400">
-        <p class="text-sm text-gray-500 mt-1">Employee will use this to login</p>
-      </div>
+<!-- Main Content -->
+<main class="p-6 max-w-5xl mx-auto">
+  <div class="bg-white rounded-lg shadow-md p-6">
+    <div class="text-center mb-8">
+      <h2 class="text-3xl font-bold text-gray-800 mb-2">Register New Employee</h2>
+      <p class="text-gray-600">Add new employees to the restaurant management system</p>
+    </div>
 
-      <!-- REMOVED PASSWORD FIELD - Will be auto-generated -->
-
-      <div>
-        <label class="block text-gray-700 font-medium mb-1">Role</label>
-        <select id="role" class="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-amber-400">
-          <option value="Employee">Employee</option>
-          <option value="Admin">Admin</option>
-        </select>
-      </div>
-
-      <div>
-        <label class="block text-gray-700 font-medium mb-1">Email *</label>
-        <div class="flex space-x-2">
-          <input type="email" id="email" required 
-                 class="flex-1 border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-amber-400"
-                 placeholder="employee@company.com">
-          <button type="button" id="validateEmailBtn" 
-                  class="bg-blue-500 text-white px-4 py-3 rounded-xl hover:bg-blue-600 transition-all whitespace-nowrap">
-            Validate Email
-          </button>
+    <!-- Registration Form -->
+    <form id="employeeForm" class="max-w-2xl mx-auto">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="md:col-span-2">
+          <label for="name" class="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+          <input id="name" type="text" required
+            class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
         </div>
-        <div id="emailValidationResult" class="mt-2 text-sm hidden"></div>
-        <p class="text-sm text-gray-500 mt-1">A secure password will be generated and sent to this email</p>
+
+        <div>
+          <label for="username" class="block text-sm font-medium text-gray-700 mb-1">Username</label>
+          <input id="username" type="text" required
+            class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+        </div>
+
+        <div>
+          <label for="email" class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+          <input id="email" type="email" required
+            class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+        </div>
+
+        <div>
+          <label for="phone" class="block text-sm font-medium text-gray-700 mb-1">Phone (optional)</label>
+          <input id="phone" type="tel"
+            class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+        </div>
+
+        <div>
+          <label for="role" class="block text-sm font-medium text-gray-700 mb-1">Role</label>
+          <select id="role"
+            class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+            <option value="Employee">Employee</option>
+            <option value="Manager">Manager</option>
+            <option value="Admin">Admin</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="password" class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+          <input id="password" type="password" required
+            class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+        </div>
       </div>
 
-      <div>
-        <label class="block text-gray-700 font-medium mb-1">Phone</label>
-        <input type="text" id="phone" class="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-amber-400">
+      <div class="mt-8 flex justify-center gap-4">
+        <button type="submit"
+          class="bg-blue-600 text-white px-8 py-3 rounded-lg hover:bg-blue-700 transition shadow-md font-medium">
+          Register Employee
+        </button>
+        <button type="button" id="clearForm"
+          class="bg-gray-500 text-white px-8 py-3 rounded-lg hover:bg-gray-600 transition shadow-md font-medium">
+          Clear Form
+        </button>
       </div>
-
-      <button type="submit" id="submitBtn" 
-              class="w-full bg-amber-500 text-white font-semibold py-3 rounded-xl hover:bg-amber-600 transition-all disabled:bg-gray-400 disabled:cursor-not-allowed">
-        Register Employee & Generate Password
-      </button>
-
-      <p class="text-center mt-4">
-        <a href="/Employee/admin_main.html" class="text-amber-600 hover:underline">← Back to Admin Dashboard</a>
-      </p>
     </form>
   </div>
+</main>
 
-  <script>
-    let isEmailValid = false;
+<!-- Toast Container -->
+<div id="toast" class="hidden fixed bottom-6 right-6 z-50"></div>
 
-    // Email validation handler
-    document.getElementById('validateEmailBtn').addEventListener('click', async () => {
-      const email = document.getElementById('email').value;
-      const resultDiv = document.getElementById('emailValidationResult');
-      
-      if (!email) {
-        showValidationResult('Please enter an email address', 'error');
-        return;
-      }
+<script>
+  document.getElementById("employeeForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
 
-      // Basic email format check
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(email)) {
-        showValidationResult('Please enter a valid email address', 'error');
-        return;
-      }
+    const employee = {
+      name: document.getElementById("name").value.trim(),
+      username: document.getElementById("username").value.trim(),
+      email: document.getElementById("email").value.trim(),
+      phone: document.getElementById("phone").value.trim(),
+      role: document.getElementById("role").value,
+      password: document.getElementById("password").value.trim()
+    };
 
-      // Show loading
-      showValidationResult('Validating email...', 'loading');
-
-      try {
-        const res = await fetch('/Employee/validate-email', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email })
-        });
-
-        const result = await res.json();
-
-        if (result.success) {
-          showValidationResult('✓ Email is valid and ready to use', 'success');
-          isEmailValid = true;
-          updateSubmitButton();
-        } else {
-          showValidationResult(`✗ ${result.message}`, 'error');
-          isEmailValid = false;
-          updateSubmitButton();
-        }
-      } catch (error) {
-        showValidationResult('✗ Network error during validation', 'error');
-        isEmailValid = false;
-        updateSubmitButton();
-      }
-    });
-
-    // Form submission handler
-    document.getElementById('registerForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      
-      if (!isEmailValid) {
-        alert('Please validate the email address first');
-        return;
-      }
-
-      const submitBtn = document.getElementById('submitBtn');
-      const originalText = submitBtn.textContent;
-      submitBtn.textContent = 'Registering...';
-      submitBtn.disabled = true;
-
-      const data = {
-        name: document.getElementById('name').value,
-        username: document.getElementById('username').value,
-        role: document.getElementById('role').value,
-        email: document.getElementById('email').value,
-        phone: document.getElementById('phone').value
-      };
-
-      try {
-        const res = await fetch('/Employee/register', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data)
-        });
-
-        const result = await res.json();
-
-        if (result.success) {
-          alert(` Employee registered successfully!\n\n📧 Credentials generated:\n\nUsername: ${data.username}\nTemporary Password: ${result.tempPassword}\n\nPlease provide these credentials to the employee and ask them to change their password on first login.`);
-          document.getElementById('registerForm').reset();
-          isEmailValid = false;
-          updateSubmitButton();
-          document.getElementById('emailValidationResult').classList.add('hidden');
-        } else {
-          alert(' ' + (result.message || 'Failed to register employee.'));
-        }
-      } catch (error) {
-        alert(' Network error: ' + error.message);
-      } finally {
-        submitBtn.textContent = originalText;
-        submitBtn.disabled = false;
-      }
-    });
-
-    // Helper functions
-    function showValidationResult(message, type) {
-      const resultDiv = document.getElementById('emailValidationResult');
-      resultDiv.textContent = message;
-      resultDiv.className = 'mt-2 text-sm';
-      
-      switch (type) {
-        case 'success':
-          resultDiv.classList.add('text-green-600', 'font-medium');
-          break;
-        case 'error':
-          resultDiv.classList.add('text-red-600', 'font-medium');
-          break;
-        case 'loading':
-          resultDiv.classList.add('text-blue-600', 'font-medium');
-          break;
-      }
-      
-      resultDiv.classList.remove('hidden');
+    if (!employee.name || !employee.username || !employee.email || !employee.password) {
+      return showToast("❌ Please fill out all required fields.", "error");
     }
 
-    function updateSubmitButton() {
-      const submitBtn = document.getElementById('submitBtn');
-      submitBtn.disabled = !isEmailValid;
+    try {
+      const res = await fetch("/Employee/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(employee)
+      });
+
+      let data = {};
+      try { data = await res.json(); } catch (_) {}
+
+      if (!data.success) {
+        return showToast("❌ " + (data.message || "Registration failed"), "error");
+      }
+
+      showToast("✅ Employee registered! You can add another employee.", "success");
+      
+      // Clear the form for the next registration
+      document.getElementById("employeeForm").reset();
+
+    } catch (err) {
+      showToast("⚠️ Server error. Check Node.js.", "error");
+    }
+  });
+
+  // Clear form button functionality
+  document.getElementById("clearForm").addEventListener("click", () => {
+    document.getElementById("employeeForm").reset();
+    showToast("Form cleared", "success");
+  });
+
+  function showToast(message, type = "success") {
+    const toast = document.getElementById("toast");
+
+    toast.innerHTML = `
+      <div class="px-4 py-3 rounded-lg shadow-md text-white text-sm animate-fade-in-down
+        ${type === "error" ? "bg-red-600" : "bg-green-600"}">
+        ${message}
+      </div>
+    `;
+
+    toast.classList.remove("hidden");
+
+    if (window.innerWidth < 640) {
+      toast.classList.add("left-1/2", "-translate-x-1/2");
+    } else {
+      toast.classList.remove("left-1/2", "-translate-x-1/2");
     }
 
-    // Reset validation when email changes
-    document.getElementById('email').addEventListener('input', () => {
-      isEmailValid = false;
-      updateSubmitButton();
-      document.getElementById('emailValidationResult').classList.add('hidden');
-    });
-  </script>
+    setTimeout(() => toast.classList.add("hidden"), 3000);
+  }
+
+  tailwind.config = {
+    theme: {
+      extend: {
+        keyframes: {
+          "fade-in-down": {
+            "0%": { opacity: "0", transform: "translateY(20px)" },
+            "100%": { opacity: "1", transform: "translateY(0)" }
+          }
+        },
+        animation: { "fade-in-down": "fade-in-down 0.3s ease-out" }
+      }
+    }
+  };
+</script>
+
 </body>
 </html>
