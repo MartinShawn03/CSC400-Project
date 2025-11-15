@@ -6,6 +6,7 @@ const { randomBytes } = require('crypto');
 const formidable = require('formidable');
 const bcrypt = require('bcrypt');
 const QRCode = require('qrcode');
+const dns = require('dns').promises;
 
 const baseDir = path.resolve(__dirname, '..');
 
@@ -23,52 +24,6 @@ const connection_pool = mysql.createPool({
 const sessions = {};
 const customerSessions = {};
 
-/*
-// Email domain validation function
-  function validateEmailDomain(email) {
-  const domain = email.split('@')[1];
-  
-  // Simple domain format check
-  const domainRegex = /^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-  if (!domainRegex.test(domain)) {
-    return {
-      isValid: false,
-      reason: 'Invalid domain format',
-      details: `Domain '${domain}' is not properly formatted`
-    };
-  }
-
-  // Common disposable email domains
-  const disposableDomains = [
-    'tempmail.com', 'throwaway.com', 'fake.com', 'guerrillamail.com',
-    'mailinator.com', '10minutemail.com', 'yopmail.com', 'trashmail.com'
-  ];
-  
-  if (disposableDomains.includes(domain)) {
-    return {
-      isValid: false,
-      reason: 'Disposable email domain',
-      details: 'Temporary/disposable email addresses are not allowed'
-    };
-  }
-
-  return {
-    isValid: true,
-    reason: 'Email format and domain appear valid',
-    details: `Domain '${domain}' is recognized and should be able to receive emails`
-  };
-}
-
-// Password generation function
-function generateSecurePassword() {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  let password = '';
-  for (let i = 0; i < 10; i++) {
-    password += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return password;
-}
-*/
 const server = http.createServer((req, res) => {
   let reqPath = decodeURIComponent(req.url.split('?')[0]);
 
@@ -100,6 +55,18 @@ function getCustomerSessionFromCookie(req) {
   const match = cookie.match(/cust_session=([a-f0-9]+)/);
   const token = match ? match[1] : null;
   return token ? customerSessions[token] : null;
+}
+
+// Validate that email domain has MX record (real mail server)
+async function isValidEmailDomain(email) {
+  const domain = email.split('@')[1];
+  if (!domain) return false;
+  try {
+    const records = await dns.resolveMx(domain);
+    return records && records.length > 0;
+  } catch (err) {
+    return false;
+  }
 }
 
 // ---------- EMPLOYEE LOGIN ----------
@@ -205,14 +172,9 @@ if (req.method === 'POST' && (reqPath === '/Employee/login' || reqPath === '/emp
     }
   }
 
-
-//Email Validation
-if (req.method === 'POST' && reqPath === '/Employee/validate-email') {
-  const cookie = req.headers.cookie || '';
-  const match = cookie.match(/session=([a-f0-9]+)/);
-  const token = match ? match[1] : null;
-  const session = token ? sessions[token] : null;
-
+  // ---------- ADMIN: Register New Employee ----------
+ if (req.method === 'POST' && reqPath === '/Employee/register') {
+  const session = getSessionFromCookie();
   if (!session || String(session.role).toLowerCase() !== 'admin') {
     res.writeHead(403, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ success: false, message: 'Unauthorized: Admins only' }));
@@ -222,81 +184,19 @@ if (req.method === 'POST' && reqPath === '/Employee/validate-email') {
   req.on('data', chunk => body += chunk);
   req.on('end', async () => {
     try {
-      const { email } = JSON.parse(body);
+      const { name, username, password, role, email, phone } = JSON.parse(body);
 
-      if (!email) {
+      if (!name || !username || !password || !email) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ success: false, message: 'Email is required' }));
+        return res.end(JSON.stringify({ success: false, message: 'Missing required fields' }));
       }
 
-      // Basic email format validation
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(email)) {
+      // Email domain validation
+      const validDomain = await isValidEmailDomain(email);
+      if (!validDomain) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ success: false, message: 'Invalid email format' }));
+        return res.end(JSON.stringify({ success: false, message: 'Invalid email domain — cannot receive mail' }));
       }
-
-      // Check if email already exists in database
-      const checkEmailSQL = 'SELECT employee_id FROM Employees WHERE email = ? LIMIT 1';
-      connection_pool.query(checkEmailSQL, [email], (err, rows) => {
-        if (err) {
-          console.error('DB Error (email check):', err);
-          res.writeHead(500, { 'Content-Type': 'application/json' });
-          return res.end(JSON.stringify({ success: false, message: 'Database error during email check' }));
-        }
-
-        if (rows.length > 0) {
-          res.writeHead(409, { 'Content-Type': 'application/json' });
-          return res.end(JSON.stringify({ success: false, message: 'Email already registered in system' }));
-        }
-
-        // Domain validation
-        const validationResult = validateEmailDomain(email);
-        if (validationResult.isValid) {
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ 
-            success: true, 
-            message: 'Email is valid and can receive messages',
-            details: validationResult
-          }));
-        } else {
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ 
-            success: false, 
-            message: 'Email validation failed',
-            details: validationResult
-          }));
-        }
-      });
-
-    } catch (e) {
-      console.error('JSON Parse Error:', e);
-      res.writeHead(400, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: false, message: 'Invalid JSON format' }));
-    }
-  });
-  return;
-}
-
-
-// ---------- ADMIN: Register New Employee ----------
-  if (req.method === 'POST' && reqPath === '/Employee/register') {
-    const session = getSessionFromCookie();
-    if (!session || String(session.role).toLowerCase() !== 'admin') {
-      res.writeHead(403, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ success: false, message: 'Unauthorized: Admins only' }));
-    }
-
-    let body = '';
-    req.on('data', chunk => body += chunk);
-    req.on('end', () => {
-      try {
-        const { name, username, password, role, email, phone } = JSON.parse(body);
-
-        if (!name || !username || !password || !email) {
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          return res.end(JSON.stringify({ success: false, message: 'Missing required fields' }));
-        }
 
         // Check if email already exists
         const checkEmailSQL = 'SELECT employee_id FROM Employees WHERE email = ? LIMIT 1';
@@ -361,9 +261,6 @@ if (req.method === 'POST' && reqPath === '/Employee/validate-email') {
     });
     return;
   }
-
-
-
 
   // ---------- ADMIN: Get all employees ----------
   if (req.method === 'GET' && reqPath === '/Employee/list') {
@@ -476,7 +373,7 @@ if (req.method === 'POST' && reqPath === '/Employee/validate-email') {
       res.writeHead(400, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ success: false, message: 'Form parse error' }));
     }
-    
+
     const item_name = Array.isArray(fields.item_name) ? fields.item_name[0] : fields.item_name || '';
     const description = Array.isArray(fields.description) ? fields.description[0] : fields.description || '';
     const price = Array.isArray(fields.price) ? fields.price[0] : fields.price || '';
@@ -587,12 +484,21 @@ if (imageFile && imageFile.filepath) {
   if (req.method === 'POST' && req.url === '/api/register') {
     let body = '';
     req.on('data', chunk => body += chunk);
-    req.on('end', () => {
+    req.on('end', async () => {
       try {
         const { name, phone, email, password } = JSON.parse(body);
         if (!name || !email || !password) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
           return res.end(JSON.stringify({ success: false, message: 'Missing required fields' }));
+        }
+      // Email domain validation (real mail server)
+        const validDomain = await isValidEmailDomain(email);
+        if (!validDomain) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({
+            success: false,
+            message: 'Invalid email domain — cannot receive mail'
+          }));
         }
 
         bcrypt.hash(password, 10, (hashErr, hashedPassword) => {
