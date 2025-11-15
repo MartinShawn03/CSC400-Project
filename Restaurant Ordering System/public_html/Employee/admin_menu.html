@@ -28,11 +28,6 @@
     <!-- Filled by JS -->
   </select>
 
-  <button type="button"
-          id="addCategoryBtn"
-          class="bg-blue-600 text-white px-3 rounded hover:bg-blue-700">
-    + Add
-  </button>
 </div>
         <input type="number" id="price" name="price" placeholder="Price" step="0.01" required class="border p-2 rounded">
         <input type="text" id="description" name="description" placeholder="Description" class="border p-2 rounded col-span-full">
@@ -51,13 +46,10 @@
 <script>
 let defaultCategories = [
   "Appetizers",
-  "Entrees",
-  "Desserts",
-  "Drinks",
+  "Main Courses",
   "Sides",
-  "Salads",
-  "Soups",
-  "Kids Menu"
+  "Beverages",
+"Desserts"
 ];
 
 let categorySelect = null;
@@ -65,7 +57,6 @@ let categorySelect = null;
 document.addEventListener("DOMContentLoaded", () => {
   categorySelect = document.getElementById("category");
  loadCategoryDropdown();
-setupCategoryModal();
 setupAddForm();
 loadMenu();
 });
@@ -75,72 +66,12 @@ async function loadCategoryDropdown() {
 
   categorySelect.innerHTML = "";
 
-  // Start with default categories
-  let categories = [...defaultCategories];
-
-  try {
-    const res = await fetch("/api/menu");
-    const data = await res.json();
-    if (data.success && data.items.length) {
-      const dbCategories = [...new Set(
-        data.items
-          .map(i => i.category)
-          .filter(c => c && c.trim() !== "")
-      )];
-
-      categories = [...new Set([...categories, ...dbCategories])];
-    }
-  } catch (err) {
-    console.error("Category load error:", err);
-  }
-
-  categories.sort().forEach(cat => {
+  defaultCategories.forEach(cat => {
     const opt = document.createElement("option");
     opt.value = cat;
     opt.textContent = cat;
     categorySelect.appendChild(opt);
   });
-}
-
-
-    function setupCategoryModal() {
-      const addBtn = document.getElementById("addCategoryBtn");
-      const modal = document.getElementById("categoryModal");
-      const cancelBtn = document.getElementById("cancelCategory");
-      const saveBtn = document.getElementById("saveCategory");
-
-      addBtn.addEventListener("click", () => {
-        modal.classList.remove("hidden");
-        modal.classList.add("flex");
-        document.getElementById("newCategoryInput").value = "";
-      });
-
-      cancelBtn.addEventListener("click", () => {
-        modal.classList.add("hidden");
-        modal.classList.remove("flex");
-      });
-
-saveBtn.addEventListener("click", () => {
-  const input = document.getElementById("newCategoryInput");
-  const newCat = input.value.trim();
-
-  if (!newCat) {
-    alert("Enter a category name.");
-    return;
-  }
-
-  if (!defaultCategories.includes(newCat)) {
-    defaultCategories.push(newCat);
-  }
-
-  loadCategoryDropdown();
-
-  categorySelect.value = newCat;
-
-  input.value = "";
-  modal.classList.add("hidden");
-  modal.classList.remove("flex");
-});
 }
 
     async function loadMenu() {
@@ -260,25 +191,5 @@ function setupAddForm() {
   });
 }
 </script>
-<!-- Add Category Modal -->
-<div id="categoryModal"
-     class="fixed inset-0 bg-black bg-opacity-40 hidden items-center justify-center z-50">
-  <div class="bg-white p-6 rounded shadow-md w-80">
-    <h2 class="text-lg font-bold mb-3">Add New Category</h2>
-    <input id="newCategoryInput"
-           type="text"
-           placeholder="Category name"
-           class="border p-2 w-full rounded mb-4">
-    <div class="flex justify-end gap-2">
-      <button id="cancelCategory"
-              class="px-3 py-1 rounded bg-gray-300 hover:bg-gray-400">Cancel</button>
-      <button id="saveCategory"
-              class="px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-700">
-        Save
-      </button>
-    </div>
-  </div>
-</div>
-
 </body>
 </html>
