@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Order History – Self Service Ordering</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://js.stripe.com/v3/"></script> <!-- Optional, for future payment status -->
+</head>
+<body class="bg-gray-50 text-gray-800 font-sans min-h-screen flex flex-col">
+
+  <!-- Header -->
+  <header class="bg-white border-b border-gray-200">
+    <div class="max-w-6xl mx-auto flex justify-between items-center p-4">
+      <div class="flex items-center gap-3">
+        <h1 class="text-xl sm:text-2xl font-semibold">Self Service Ordering</h1>
+      </div>
+      <nav class="flex items-center gap-2 ml-auto">
+        <a href="customer_main.html" class="bg-gray-100 text-gray-800 px-3 py-1 rounded-md hover:bg-gray-200 transition">Home</a>
+        <a href="customer_checkout.html" class="bg-gray-100 text-gray-800 px-3 py-1 rounded-md hover:bg-gray-200 transition">Checkout</a>
+        <a href="#" id="logoutBtn" class="bg-red-100 text-red-800 px-3 py-1 rounded-md hover:bg-red-200 transition">Logout</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Main -->
+  <main class="flex-grow max-w-4xl mx-auto px-4 py-8">
+    <!-- Order History -->
+    <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+      <h2 class="text-lg font-semibold mb-4">Order History</h2>
+      <div id="orderHistory" class="space-y-4">
+        <p class="text-gray-500 text-center py-4">Loading your order history...</p>
+      </div>
+      <p id="statusMsg" class="text-center text-sm mt-4 text-gray-600"></p>
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-white border-t border-gray-200 mt-10">
+    <div class="max-w-6xl mx-auto p-4 text-center text-xs text-gray-500">
+      &copy; 2025 Self Service Ordering. All rights reserved.
+    </div>
+  </footer>
+
+  <!-- Customer Session Management -->
+  <script>
+    const CustomerSession = {
+      isLoggedIn() {
+        return localStorage.getItem('customerLoggedIn') === 'true';
+      },
+      getCustomer() {
+        const data = localStorage.getItem('customerData');
+        return data ? JSON.parse(data) : null;
+      },
+      clearSession() {
+        localStorage.removeItem('customerLoggedIn');
+        localStorage.removeItem('customerData');
+        localStorage.removeItem('customerEmail');
+        fetch('/api/logout', { method: 'POST' }).catch(() => {});
+      },
+    };
+
+    // Logout button
+    document.getElementById('logoutBtn').addEventListener('click', (e) => {
+      e.preventDefault();
+      CustomerSession.clearSession();
+      window.location.href = 'customer_main.html';
+    });
+
+    // Redirect if not logged in
+    if (!CustomerSession.isLoggedIn()) {
+      window.location.href = 'customer_login.html';
+    }
+  </script>
+
+  <!-- Order History Logic -->
+  <script>
+    async function fetchOrderHistory(email) {
+      try {
+        const response = await fetch('/api/orders/customer', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email }),
+        });
+        const data = await response.json();
+        if (!data.success) throw new Error(data.message || 'Failed to load orders');
+        return data.orders;
+      } catch (error) {
+        console.error('Error fetching orders:', error);
+        return [];
+      }
+    }
+
+    function renderOrderHistory(orders) {
+      const container = document.getElementById('orderHistory');
+      const statusMsg = document.getElementById('statusMsg');
+      container.innerHTML = '';
+
+      if (!orders.length) {
+        container.innerHTML = '<p class="text-gray-500 text-center py-4">No orders found.</p>';
+        return;
+      }
+
+      orders.forEach(order => {
+        const div = document.createElement('div');
+        div.className = 'border-b border-gray-200 py-3';
+        div.innerHTML = `
+          <div class="flex justify-between items-center">
+            <span class="font-medium">${order.item_name} x${order.quantity}</span>
+            <span>$${order.price.toFixed(2)}</span>
+          </div>
+          <div class="text-sm text-gray-500 mt-1">
+            <span>Order #${order.order_id}</span>
+            <span class="ml-4">${new Date(order.order_time).toLocaleDateString()}</span>
+            <span class="ml-4">${order.status}</span>
+          </div>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    // Load order history on page load
+    document.addEventListener('DOMContentLoaded', async () => {
+      const customer = CustomerSession.getCustomer();
+      if (customer && customer.email) {
+        const orders = await fetchOrderHistory(customer.email);
+        renderOrderHistory(orders);
+      } else {
+        document.getElementById('orderHistory').innerHTML = '<p class="text-red-600 text-center py-4">Please log in to view your order history.</p>';
+      }
+    });
+  </script>
+</body>
+</html>

@@ -8,25 +8,37 @@
 </head>
 <body class="bg-gray-50 text-gray-800 font-sans min-h-screen flex flex-col">
 
-  <!-- Header -->
+<!-- Header -->
 <header class="bg-white border-b border-gray-200">
   <div class="max-w-6xl mx-auto flex justify-between items-center p-4">
-    <!-- Left side: logo/title -->
     <div class="flex items-center gap-3">
       <h1 class="text-xl sm:text-2xl font-semibold">Self Service Ordering</h1>
     </div>
 
-    <!-- Right side: navigation buttons -->
-    <nav class="flex items-center gap-2 ml-auto">
-      <a href="customer_cart.html"
-         class="bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700 transition">Cart</a>
-      <a href="customer_order.html"
-         class="bg-green-600 text-white px-3 py-1 rounded-md hover:bg-green-700 transition">My Orders</a>
-      <a href="customer_login.html"
-         class="bg-blue-100 text-gray-800 px-3 py-1 rounded-md hover:bg-blue-200 transition">Login</a>
-    </nav>
+    <div class="relative" id="userMenu">
+      <button id="menuButton"
+              class="flex items-center justify-center w-10 h-10 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition focus:outline-none">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none"
+             viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+      </button>
+
+      <!-- Dropdown -->
+      <div id="menuDropdown"
+           class="hidden absolute right-0 mt-2 w-40 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden z-50">
+        <a href="customer_login.html"
+           id="loginLogoutLink"
+           class="block px-4 py-2 text-gray-700 hover:bg-gray-100">Login</a>
+        <a href="customer_cart.html"
+           class="block px-4 py-2 text-gray-700 hover:bg-gray-100">Cart</a>
+        <a href="customer_order.html"
+           class="block px-4 py-2 text-gray-700 hover:bg-gray-100">My Orders</a>
+      </div>
+    </div>
   </div>
 </header>
+
 
   <!-- Hero -->
   <section class="relative w-full h-64 sm:h-80 overflow-hidden">
@@ -45,7 +57,7 @@
   <!-- Main -->
   <main class="flex-grow px-4 sm:px-6 py-8 max-w-6xl mx-auto">
     <div class="text-center mb-8">
-      <a href="/Customer/customer_menu.html"
+      <a href="customer_menu.html"
          class="inline-block bg-blue-600 text-white px-6 py-3 rounded-md shadow-lg hover:bg-blue-700 transition">
         Browse Menu
       </a>
@@ -170,8 +182,9 @@
         const featured = data.items.slice(0, 4); // show up to 4
         featuredContainer.innerHTML = featured.map(item => `
           <div class="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm flex flex-col">
-            <img src="https://via.placeholder.com/400x300" alt="${item.item_name}" class="w-full h-32 sm:h-40 object-cover">
-            <div class="p-3 flex flex-col flex-grow">
+           <!-- <img src="https://via.placeholder.com/400x300" alt="${item.item_name}" class="w-full h-32 sm:h-40 object-cover">-->
+              <img src="/image/${item.image}" alt="${item.item_name}" class="w-full h-36 object-cover">            
+              <div class="p-3 flex flex-col flex-grow">
               <h3 class="font-medium text-gray-900">${item.item_name}</h3>
               <p class="text-xs text-gray-600 flex-grow my-1">${item.description || ''}</p>
               <div class="flex justify-between items-center mt-2">
@@ -262,5 +275,42 @@
       });
     });
   </script>
+
+  <script>
+  // Dropdown toggle
+  const menuButton = document.getElementById('menuButton');
+  const menuDropdown = document.getElementById('menuDropdown');
+
+  menuButton.addEventListener('click', () => {
+    menuDropdown.classList.toggle('hidden');
+  });
+
+  // Close dropdown when clicking outside
+  document.addEventListener('click', (event) => {
+    if (!menuButton.contains(event.target) && !menuDropdown.contains(event.target)) {
+      menuDropdown.classList.add('hidden');
+    }
+  });
+
+  // Update login/logout dynamically using CustomerSession
+  document.addEventListener('DOMContentLoaded', () => {
+    const loginLogoutLink = document.getElementById('loginLogoutLink');
+    if (!loginLogoutLink) return;
+
+    if (CustomerSession.isLoggedIn()) {
+      loginLogoutLink.textContent = 'Logout';
+      loginLogoutLink.href = '#';
+      loginLogoutLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        CustomerSession.clearSession();
+        window.location.href = 'customer_main.html';
+      });
+    } else {
+      loginLogoutLink.textContent = 'Login';
+      loginLogoutLink.href = 'customer_login.html';
+    }
+  });
+</script>
+
 </body>
 </html>
