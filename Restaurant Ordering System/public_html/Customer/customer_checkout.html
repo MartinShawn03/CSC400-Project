@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Checkout – Self Service Ordering</title>
+  <script src="https://js.stripe.com/v3/"></script>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-50 text-gray-800 font-sans min-h-screen flex flex-col">
@@ -149,100 +150,100 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 </script>
 
-<!-- Checkout Logic -->
 <script>
+
+const stripe = Stripe('pk_test_51SFy9hAEv5kiH6la3apUe0ronAHocibuAjVdd9r1W7zAFYJpi4F90BHK5VCdMqyxIIaqaifHltWO1ZAygdYTzwCp00S0q23MLJ'); 
+
 const Cart = {
   items: JSON.parse(localStorage.getItem('cartItems')) || [],
-  getTotal() {
-    return this.items.reduce((sum, i) => sum + i.priceCents * i.qty, 0) / 100;
-  },
-  clear() {
-    this.items = [];
-    localStorage.removeItem('cartItems');
-  },
+  getTotal() { return this.items.reduce((sum, i) => sum + i.priceCents * i.qty, 0) / 100; },
+  clear() { this.items = []; localStorage.removeItem('cartItems'); }
 };
 
 function renderOrder() {
   const container = document.getElementById('orderItems');
   const totalEl = document.getElementById('orderTotal');
   container.innerHTML = '';
-
   if (!Cart.items.length) {
     container.innerHTML = '<p class="text-gray-500 text-center py-4">Your cart is empty.</p>';
     totalEl.textContent = '$0.00';
     return;
   }
-
   Cart.items.forEach(item => {
     const div = document.createElement('div');
     div.className = 'py-3 flex justify-between';
-    div.innerHTML = `
-      <span>${item.name} × ${item.qty}</span>
-      <span>$${(item.priceCents * item.qty / 100).toFixed(2)}</span>
-    `;
+    div.innerHTML = `<span>${item.name} × ${item.qty}</span><span>$${(item.priceCents * item.qty / 100).toFixed(2)}</span>`;
     container.appendChild(div);
   });
-
   totalEl.textContent = '$' + Cart.getTotal().toFixed(2);
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  renderOrder();
-  CustomerSession.populateCheckoutForm();
-});
+document.addEventListener('DOMContentLoaded', renderOrder);
 
 document.getElementById('placeOrderBtn').addEventListener('click', async () => {
   const name = document.getElementById('custName').value.trim();
   const email = document.getElementById('custEmail').value.trim();
   const phone = document.getElementById('custPhone').value.trim();
   const statusMsg = document.getElementById('statusMsg');
+  const btn = document.getElementById('placeOrderBtn');
 
   if (!name || !email || !Cart.items.length) {
-    statusMsg.textContent = '⚠️ Please fill out your details and ensure your cart is not empty.';
-    statusMsg.className = 'text-center text-sm mt-4 text-red-600';
+    statusMsg.textContent = 'Please fill all fields and add items to cart';
+    statusMsg.className = 'text-red-600 text-center mt-4';
     return;
   }
 
-  // If logged in, use session customer_id, otherwise null for guest
-  const customerData = CustomerSession.isLoggedIn() ? CustomerSession.getCustomer() : null;
-
-  const orderData = {
-    customer: {
-      name,
-      email,
-      phone,
-      customer_id: customerData ? customerData.id : null
-    },
-    items: Cart.items.map(i => ({ item_id: i.id, quantity: i.qty })),
-    total: Cart.getTotal()
-  };
+  btn.disabled = true;
+  btn.textContent = 'Processing...';
+  statusMsg.textContent = 'Creating your order...';
+  statusMsg.className = 'text-blue-600 text-center mt-4';
 
   try {
-    const res = await fetch('/api/checkout', {
+    // Step 1: Create order on your server
+    const customerData = CustomerSession.isLoggedIn() ? CustomerSession.getCustomer() : null;
+    const checkoutRes = await fetch('/api/checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(orderData)
+      body: JSON.stringify({
+        customer: { name, email, phone, customer_id: customerData?.id || null },
+        items: Cart.items.map(i => ({ item_id: i.id, quantity: i.qty }))
+      })
     });
 
-    const data = await res.json();
-    if (data.success) {
-      Cart.clear();
-      statusMsg.textContent = ' Order placed successfully! Thank you.';
-      statusMsg.className = 'text-center text-green-600 mt-4';
+    const checkoutData = await checkoutRes.json();
+    if (!checkoutData.success) throw new Error('Failed to create order');
 
-      // Store order confirmation for guest users
-      if (!CustomerSession.isLoggedIn()) {
-        localStorage.setItem('guestOrderEmail', email);
-      }
+    const orderId = checkoutData.order_id;
 
-      setTimeout(() => window.location.href = 'customer_main.html', 2000);
-    } else {
-      throw new Error(data.message);
-    }
+    // Step 2: Send to Stripe Checkout
+    const stripeRes = await fetch('/api/create-checkout-session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        order_id: orderId,
+        items: Cart.items.map(i => ({
+          item_name: i.name,
+          price: i.priceCents / 100,  // dollars
+          quantity: i.qty
+        })),
+        customer_email: email
+      })
+    });
+
+    const stripeData = await stripeRes.json();
+    if (!stripeData.success || !stripeData.url) throw new Error(stripeData.message || 'Stripe failed');
+
+    // Success! Clear cart and redirect to Stripe
+    Cart.clear();
+    renderOrder();
+    window.location = stripeData.url;  // Beautiful Stripe checkout page
+
   } catch (err) {
-    statusMsg.textContent = ' Error placing order. Please try again.';
-    statusMsg.className = 'text-center text-red-600 mt-4';
-    console.error(err);
+    console.error('Checkout failed:', err);
+    statusMsg.textContent = 'Payment failed – try again';
+    statusMsg.className = 'text-red-600 text-center mt-4';
+    btn.disabled = false;
+    btn.textContent = 'Place Order';
   }
 });
 </script>
