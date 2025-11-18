@@ -19,7 +19,7 @@
     <!-- Right side: navigation buttons -->
     <nav class="flex items-center gap-2 ml-auto">
       <a href="customer_main.html"
-         class="bg-gray-100 text-gray-800 px-3 py-1 rounded-md hover:bg-gray-200 transition">Home</a>
+         class="inline-block border border-blue-400 text-blue-700 bg-white/70 px-3 py-1 rounded-md hover:bg-white-200 transition">Home</a>
     </nav>
   </div>
 </header>
@@ -62,7 +62,7 @@
       <h2 class="text-lg font-semibold mb-4">Payment</h2>
       <p class="text-sm text-gray-600 mb-4">Payment processing is currently handled securely by Stripe (in progress).</p>
       <button id="placeOrderBtn"
-        class="w-full bg-blue-600 text-white py-3 rounded-md text-lg font-medium hover:bg-blue-700 transition">
+        class="w-full border border-blue-400 text-blue-700 bg-white/70 py-3 rounded-md shadow hover:bg-white transition cursor-pointer">
         Place Order
       </button>
     </section>
@@ -227,7 +227,7 @@ document.getElementById('placeOrderBtn').addEventListener('click', async () => {
     const data = await res.json();
     if (data.success) {
       Cart.clear();
-      statusMsg.textContent = '✅ Order placed successfully! Thank you.';
+      statusMsg.textContent = ' Order placed successfully! Thank you.';
       statusMsg.className = 'text-center text-green-600 mt-4';
 
       // Store order confirmation for guest users
@@ -240,7 +240,7 @@ document.getElementById('placeOrderBtn').addEventListener('click', async () => {
       throw new Error(data.message);
     }
   } catch (err) {
-    statusMsg.textContent = '❌ Error placing order. Please try again.';
+    statusMsg.textContent = ' Error placing order. Please try again.';
     statusMsg.className = 'text-center text-red-600 mt-4';
     console.error(err);
   }

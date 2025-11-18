@@ -446,6 +446,50 @@ if (imageFile && imageFile.filepath) {
     return;
   }
 
+// ---------- ADMIN: Edit menu item ----------
+if (req.method === 'PUT' 
+    && reqPath.startsWith('/Employee/menu/')
+    && reqPath.endsWith('/edit')) {
+
+    const session = getSessionFromCookie();
+    if (!session || String(session.role).toLowerCase() !== 'admin') {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: false, message: 'Unauthorized: Admins only' }));
+    }
+
+    const itemId = reqPath.split('/')[3];
+
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', () => {
+      try {
+        const { item_name, description, price } = JSON.parse(body);
+
+        const sql = `
+          UPDATE Menu 
+          SET item_name=?, description=?, price=? 
+          WHERE item_id=?
+        `;
+
+        connection_pool.query(sql, [item_name, description, price, itemId], (err) => {
+          if (err) {
+            console.error('Update Error:', err);
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ success: false, message: 'Database error' }));
+          }
+
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true }));
+        });
+
+      } catch (err) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, message: 'Invalid JSON format' }));
+      }
+    });
+    return;
+}
+
   // ---------- ADMIN: Toggle menu item availability (PUT /Employee/menu/:id) ----------
   if (req.method === 'PUT' && reqPath.startsWith('/Employee/menu/')) {
     const session = getSessionFromCookie();
@@ -477,7 +521,6 @@ if (imageFile && imageFile.filepath) {
      });
     return;
   }
-
 
 
   // ---------- CUSTOMER: Register ----------

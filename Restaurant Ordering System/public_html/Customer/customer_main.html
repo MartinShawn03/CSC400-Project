@@ -16,8 +16,10 @@
     </div>
 
     <div class="relative" id="userMenu">
-      <button id="menuButton"
-              class="flex items-center justify-center w-10 h-10 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition focus:outline-none">
+<button id="menuButton"
+        class="flex items-center justify-center w-10 h-10 
+               border border-blue-400 text-blue-700 bg-white/70 
+               rounded-md shadow hover:bg-white hover:shadow-lg transition focus:outline-none">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none"
              viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
@@ -58,10 +60,11 @@
   <main class="flex-grow px-4 sm:px-6 py-8 max-w-6xl mx-auto">
     <div class="text-center mb-8">
       <a href="customer_menu.html"
-         class="inline-block bg-blue-600 text-white px-6 py-3 rounded-md shadow-lg hover:bg-blue-700 transition">
+         class="inline-block border border-blue-400 text-blue-700 bg-white/70 px-6 py-3 rounded-lg shadow hover:shadow-lg transition z-50">
         Browse Menu
       </a>
     </div>
+
  
 <!--  QR Code (stable, points to customer_main)
   <div class="max-w-6xl mx-auto mb-10">
@@ -180,27 +183,59 @@
         }
 
         const featured = data.items.slice(0, 4); // show up to 4
-        featuredContainer.innerHTML = featured.map(item => `
-          <div class="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm flex flex-col">
-           <!-- <img src="https://via.placeholder.com/400x300" alt="${item.item_name}" class="w-full h-32 sm:h-40 object-cover">-->
-              <img src="/image/${item.image}" alt="${item.item_name}" class="w-full h-36 object-cover">            
-              <div class="p-3 flex flex-col flex-grow">
-              <h3 class="font-medium text-gray-900">${item.item_name}</h3>
-              <p class="text-xs text-gray-600 flex-grow my-1">${item.description || ''}</p>
-              <div class="flex justify-between items-center mt-2">
-                <span class="font-semibold text-gray-800">$${parseFloat(item.price).toFixed(2)}</span>
-                <button
-                  class="bg-blue-600 text-white px-3 py-1 rounded-md text-sm hover:bg-blue-700 transition"
-                  data-add-to-cart
-                  data-id="${item.item_id}"
-                  data-name="${item.item_name}"
-                  data-price="${item.price}">
-                  Add
-                </button>
-              </div>
-            </div>
-          </div>
-        `).join('');
+	featuredContainer.innerHTML = featured.map(item => `
+  <div class="bg-white border border-gray-200 rounded-xl shadow-sm p-4 flex flex-col items-center text-center">
+
+    <!-- Image -->
+    <img src="/image/${item.image}"
+         alt="${item.item_name}"
+         class="w-full h-36 object-cover rounded-md mb-3">
+
+    <!-- Name -->
+    <h3 class="text-lg font-semibold text-gray-900">${item.item_name}</h3>
+
+    <!-- Description -->
+    <p class="text-xs text-gray-600 mt-1 mb-2">${item.description || ''}</p>
+
+    <!-- Price -->
+    <p class="text-md font-bold text-gray-900 mb-3">$${Number(item.price).toFixed(2)}</p>
+
+    <!-- Quantity + Add -->
+    <div class="flex items-center justify-center gap-3 mt-auto">
+      
+      <!-- - btn -->
+      <button 
+        data-minus
+        data-id="${item.item_id}"
+        class="w-8 h-8 border border-white-200 rounded-md flex items-center justify-center hover:bg-gray-300">−</button>
+
+      <!-- qty -->
+      <input 
+        data-qty="${item.item_id}"
+        type="text"
+        value="1"
+        readonly
+        class="w-10 text-center border border-gray-300 rounded-md text-sm bg-white">
+
+      <!-- + btn -->
+      <button 
+        data-plus
+        data-id="${item.item_id}"
+        class="w-8 h-8 border border-white-200 rounded-md flex items-center justify-center hover:bg-gray-300">+</button>
+
+      <!-- Add button -->
+      <button
+        data-add-main
+        data-id="${item.item_id}"
+        data-name="${item.item_name}"
+        data-price="${item.price}"
+        class="flex-1 border border-bg-blue-400 text-blue-700 bg-white/70 px-3 py-1 rounded-md shadow hover:shadow-lg transition">
+        Add
+      </button>
+    </div>
+
+  </div>
+`).join('');
 
         // Enable Add to Cart buttons
         document.querySelectorAll('[data-add-to-cart]').forEach(btn => {
@@ -208,7 +243,7 @@
             const { id, name, price } = btn.dataset;
             const priceCents = Math.round(parseFloat(price) * 100);
             Cart.addItem({ id, name, priceCents, qty: 1 });
-            Cart.showToast(`${name} added to cart ✅`);
+            Cart.showToast(`${name} added to cart `);
           });
         });
 
@@ -220,6 +255,45 @@
 
     document.addEventListener('DOMContentLoaded', loadFeaturedItems);
   </script>
+
+<script>
+// Quantity controls for Featured Items
+document.addEventListener("click", (e) => {
+  const target = e.target;
+
+  // Minus
+  if (target.matches("[data-minus]")) {
+    const id = target.dataset.id;
+    const input = document.querySelector(`[data-qty="${id}"]`);
+    input.value = Math.max(1, parseInt(input.value) - 1);
+  }
+
+  // Plus
+  if (target.matches("[data-plus]")) {
+    const id = target.dataset.id;
+    const input = document.querySelector(`[data-qty="${id}"]`);
+    input.value = parseInt(input.value) + 1;
+  }
+
+  // Add to cart
+  if (target.matches("[data-add-main]")) {
+    const id = target.dataset.id;
+    const name = target.dataset.name;
+    const price = target.dataset.price;
+    const qty = parseInt(document.querySelector(`[data-qty="${id}"]`).value);
+
+    Cart.addItem({
+      id,
+      name,
+      priceCents: Math.round(parseFloat(price) * 100),
+      qty
+    });
+
+    Cart.showToast(`${qty} × ${name} added to cart`);
+  }
+});
+</script>
+
 
   <!-- Cart System -->
   <script>
@@ -238,7 +312,7 @@
           this.items.push({ id, name, priceCents, qty });
         }
         this.save();
-        this.showToast(`${name} added to cart ✅`);
+        this.showToast(`${name} added to cart `);
         console.log("Cart now:", this.items);
       },
 
@@ -311,6 +385,14 @@
     }
   });
 </script>
+<a href="customer_cart.html"
+   class="fixed bottom-6 right-6 
+          border border-blue-400 
+          text-blue-700 bg-white/70 
+          px-4 py-2 rounded-lg shadow 
+          hover:shadow-lg transition z-50">
+   Cart
+</a>
 
 </body>
 </html>
