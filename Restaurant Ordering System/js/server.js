@@ -1202,125 +1202,69 @@ if (req.method === 'POST' && reqPath === '/Employee/reports') {
         return res.end(JSON.stringify({ success: false, message: 'Start date and end date required' }));
       }
 
-      // Calculate comprehensive report
-      const reportQueries = `
-        -- Total Revenue and Orders
-        SELECT 
-          COUNT(DISTINCT o.order_id) as total_orders,
-          COALESCE(SUM(m.price * o.quantity), 0) as total_revenue,
-          COALESCE(AVG(m.price * o.quantity), 0) as avg_order_value
-        FROM Orders o
-        JOIN Menu m ON o.item_id = m.item_id
-        WHERE DATE(o.order_time) BETWEEN ? AND ? AND o.status = 'Completed'
-        
-        UNION ALL
-        
-        -- Most Popular Item
-        SELECT 
-          m.item_id,
-          m.item_name,
-          SUM(o.quantity) as total_quantity
-        FROM Orders o
-        JOIN Menu m ON o.item_id = m.item_id
-        WHERE DATE(o.order_time) BETWEEN ? AND ? AND o.status = 'Completed'
-        GROUP BY m.item_id, m.item_name
-        ORDER BY total_quantity DESC
-        LIMIT 1
-        
-        UNION ALL
-        
-        -- Daily Revenue
-        SELECT 
-          DATE(o.order_time) as date,
-          SUM(m.price * o.quantity) as daily_revenue
-        FROM Orders o
-        JOIN Menu m ON o.item_id = m.item_id
-        WHERE DATE(o.order_time) BETWEEN ? AND ? AND o.status = 'Completed'
-        GROUP BY DATE(o.order_time)
-        ORDER BY date
-        
-        UNION ALL
-        
-        -- Top Selling Items
-        SELECT 
-          m.item_name,
-          SUM(o.quantity) as total_quantity,
-          SUM(m.price * o.quantity) as total_revenue
-        FROM Orders o
-        JOIN Menu m ON o.item_id = m.item_id
-        WHERE DATE(o.order_time) BETWEEN ? AND ? AND o.status = 'Completed'
-        GROUP BY m.item_id, m.item_name
-        ORDER BY total_quantity DESC
-        LIMIT 10
-        
-        UNION ALL
-        
-        -- Detailed Orders
-        SELECT 
-          o.order_id,
-          COALESCE(c.name, 'Walk-in') as customer_name,
-          GROUP_CONCAT(CONCAT(m.item_name, ' (x', o.quantity, ')') SEPARATOR ', ') as items,
-          SUM(m.price * o.quantity) as total_amount,
-          o.status,
-          o.order_time
-        FROM Orders o
-        LEFT JOIN Customers c ON o.customer_id = c.customer_id
-        JOIN Menu m ON o.item_id = m.item_id
-        WHERE DATE(o.order_time) BETWEEN ? AND ? AND o.status = 'Completed'
-        GROUP BY o.order_id
-        ORDER BY o.order_time DESC
-      `;
-
-      // Execute all queries
+      // Execute all queries with proper table joins
       const queryPromises = [
-        executeQuery(`SELECT COUNT(DISTINCT o.order_id) as total_orders,
-          COALESCE(SUM(m.price * o.quantity), 0) as total_revenue,
-          COALESCE(AVG(m.price * o.quantity), 0) as avg_order_value
+        // Total Revenue and Orders
+        executeQuery(`SELECT 
+          COUNT(DISTINCT o.order_id) as total_orders,
+          COALESCE(SUM(oi.price * oi.quantity), 0) as total_revenue,
+          COALESCE(AVG(oi.price * oi.quantity), 0) as avg_order_value
         FROM Orders o
-        JOIN Menu m ON o.item_id = m.item_id
+        JOIN OrderItems oi ON o.order_id = oi.order_id
         WHERE DATE(o.order_time) BETWEEN ? AND ? AND o.status = 'Completed'`, [startDate, endDate]),
         
-        executeQuery(`SELECT m.item_name
+        // Most Popular Item
+        executeQuery(`SELECT 
+          m.item_id,
+          m.item_name,
+          SUM(oi.quantity) as total_quantity
         FROM Orders o
-        JOIN Menu m ON o.item_id = m.item_id
+        JOIN OrderItems oi ON o.order_id = oi.order_id
+        JOIN Menu m ON oi.item_id = m.item_id
         WHERE DATE(o.order_time) BETWEEN ? AND ? AND o.status = 'Completed'
         GROUP BY m.item_id, m.item_name
-        ORDER BY SUM(o.quantity) DESC
+        ORDER BY total_quantity DESC
         LIMIT 1`, [startDate, endDate]),
         
+        // Daily Revenue
         executeQuery(`SELECT 
           DATE(o.order_time) as date,
-          COALESCE(SUM(m.price * o.quantity), 0) as revenue
+          COALESCE(SUM(oi.price * oi.quantity), 0) as revenue
         FROM Orders o
-        JOIN Menu m ON o.item_id = m.item_id
+        JOIN OrderItems oi ON o.order_id = oi.order_id
         WHERE DATE(o.order_time) BETWEEN ? AND ? AND o.status = 'Completed'
         GROUP BY DATE(o.order_time)
         ORDER BY date`, [startDate, endDate]),
         
+        // Top Selling Items
         executeQuery(`SELECT 
           m.item_name,
-          SUM(o.quantity) as total_quantity
+          SUM(oi.quantity) as total_quantity,
+          SUM(oi.price * oi.quantity) as total_revenue
         FROM Orders o
-        JOIN Menu m ON o.item_id = m.item_id
+        JOIN OrderItems oi ON o.order_id = oi.order_id
+        JOIN Menu m ON oi.item_id = m.item_id
         WHERE DATE(o.order_time) BETWEEN ? AND ? AND o.status = 'Completed'
         GROUP BY m.item_id, m.item_name
         ORDER BY total_quantity DESC
         LIMIT 10`, [startDate, endDate]),
         
+        // Detailed Orders
         executeQuery(`SELECT 
           o.order_id,
           COALESCE(c.name, 'Walk-in') as customer_name,
-          GROUP_CONCAT(CONCAT(m.item_name, ' (x', o.quantity, ')') SEPARATOR ', ') as items,
-          SUM(m.price * o.quantity) as total_amount,
+          GROUP_CONCAT(CONCAT(m.item_name, ' (x', oi.quantity, ')') SEPARATOR ', ') as items,
+          SUM(oi.price * oi.quantity) as total_amount,
           o.status,
           o.order_time
         FROM Orders o
         LEFT JOIN Customers c ON o.customer_id = c.customer_id
-        JOIN Menu m ON o.item_id = m.item_id
+        JOIN OrderItems oi ON o.order_id = oi.order_id
+        JOIN Menu m ON oi.item_id = m.item_id
         WHERE DATE(o.order_time) BETWEEN ? AND ? AND o.status = 'Completed'
         GROUP BY o.order_id
         ORDER BY o.order_time DESC`, [startDate, endDate])
-	 ];
+      ];
 
       Promise.all(queryPromises).then(results => {
         const report = {
@@ -1373,14 +1317,15 @@ if (req.method === 'GET' && reqPath === '/Employee/reports/export') {
       COALESCE(c.name, 'Walk-in') as customer_name,
       c.email as customer_email,
       m.item_name,
-      o.quantity,
-      m.price as unit_price,
-      (m.price * o.quantity) as total_price,
+      oi.quantity,
+      oi.price as unit_price,
+      (oi.price * oi.quantity) as total_price,
       o.status,
       o.order_time
     FROM Orders o
     LEFT JOIN Customers c ON o.customer_id = c.customer_id
-    JOIN Menu m ON o.item_id = m.item_id
+    JOIN OrderItems oi ON o.order_id = oi.order_id
+    JOIN Menu m ON oi.item_id = m.item_id
     WHERE DATE(o.order_time) BETWEEN ? AND ? AND o.status = 'Completed'
     ORDER BY o.order_time DESC
   `;
@@ -1393,12 +1338,12 @@ if (req.method === 'GET' && reqPath === '/Employee/reports/export') {
     }
 
     // Generate CSV
-    let csv = 'Order ID,Customer Name,Email,Item,Quantity,Unit Price,Total Price,Order Time\n';
+    let csv = 'Order ID,Customer Name,Email,Item,Quantity,Unit Price,Total Price,Status,Order Time\n';
     rows.forEach(row => {
       const orderTime = new Date(row.order_time);
       const formattedTime = orderTime.toISOString().replace('T', ' ').replace(/\.\d+Z$/, '');
 
-      csv += `"${row.order_id}","${row.customer_name}","${row.customer_email}","${row.item_name}",${row.quantity},${row.unit_price},${row.total_price},"${formattedTime}"\n`;
+      csv += `"${row.order_id}","${row.customer_name}","${row.customer_email}","${row.item_name}",${row.quantity},${row.unit_price},${row.total_price},"${row.status}","${formattedTime}"\n`;
     });
 
     res.writeHead(200, {
@@ -1409,7 +1354,6 @@ if (req.method === 'GET' && reqPath === '/Employee/reports/export') {
   });
   return;
 }
-
 
   // ---------- Static file handler ----------
   let filePath = path.join(baseDir, 'public_html', reqPath.replace(/^\/+/, ''));
