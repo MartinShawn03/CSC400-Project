@@ -15,8 +15,10 @@
     <h1 class="text-xl sm:text-2xl font-semibold">Self Service Ordering</h1>
 
     <div class="relative">
-      <button id="menuButton"
-              class="flex items-center justify-center w-10 h-10 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition focus:outline-none">
+	<button id="menuButton"
+        class="flex items-center justify-center w-10 h-10 
+               border border-blue-400 text-blue-700 bg-white/70 
+               rounded-md shadow hover:bg-white hover:shadow-lg transition focus:outline-none">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none"
              viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
@@ -44,13 +46,6 @@
 <main class="flex-grow max-w-6xl mx-auto px-4 py-8">
   <h2 class="text-lg sm:text-xl font-semibold mb-6 text-center">Browse and Add Items to Your Cart</h2>
 
-  <div class="sm:hidden text-center mb-5">
-    <a href="customer_cart.html"
-       class="inline-block bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 transition">
-      Check your Cart
-    </a>
-  </div>
-
 <!-- Category Filter -->
 <div class="flex justify-end mb-6">
   <select id="categoryFilter"
@@ -61,16 +56,15 @@
 
 <!-- Grouped Menu Container -->
 <div id="menuContainer" class="space-y-10">
-    <!-- JS will insert category groups -->
 </div>
 
 
-  <div class="hidden sm:flex justify-end mt-8">
+<!--   <div class="hidden sm:flex justify-end mt-8">
     <a href="customer_cart.html"
        class="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 transition">
       Check your Cart
     </a>
-  </div>
+  </div> -->
 </main>
 
 <footer class="bg-white border-t border-gray-200 mt-10">
@@ -196,10 +190,22 @@ function renderMenu(selectedCategory = 'all') {
     groups[cat].push(item);
   });
 
-  const sortedCategories = Object.keys(groups).sort();
+// Menu order
+const sortedCategories = [
+  "Appetizers",
+  "Main Courses",
+  "Sides",
+  "Beverages",
+  "Desserts",
+  ...Object.keys(groups).filter(cat =>
+    !["Appetizers","Main Courses","Sides","Beverages","Desserts"].includes(cat)
+  )
+];
 
   sortedCategories.forEach(cat => {
+if (!groups[cat]) return;
     const section = document.createElement('section');
+section.classList.add("mb-10");
 
     const itemsHtml = groups[cat].map(item => `
       <div class="bg-white shadow rounded-lg overflow-hidden flex flex-col border border-gray-200">
@@ -212,7 +218,7 @@ function renderMenu(selectedCategory = 'all') {
 
           <div class="flex justify-between items-center mt-3">
             <span class="font-bold text-gray-800">$${Number(item.price).toFixed(2)}</span>
-            <button class="bg-blue-600 text-white px-3 py-1 rounded-md text-sm hover:bg-blue-700 transition"
+            <button class="inline-block border border-blue-400 text-blue-700 bg-white/70 px-3 py-1 rounded-md shadow hover:bg-white hover:shadow-lg transition"
               data-add-cart
               data-id="${item.item_id}"
               data-name="${item.item_name}"
@@ -224,24 +230,24 @@ function renderMenu(selectedCategory = 'all') {
       </div>
     `).join("");
 
-    section.innerHTML = `
-      <h2 class="text-xl font-bold mb-3">${cat}</h2>
-      <div class="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-        ${itemsHtml}
-      </div>
-    `;
+section.innerHTML = `
+  <div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+    
+    <h2 class="text-lg font-semibold tracking-wide pl-4 border-l-8 border-blue-600 
+               font-[Georgia] uppercase text-gray-900 mb-3">
+      ${cat}
+    </h2>
+
+    <div class="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+      ${itemsHtml}
+    </div>
+
+  </div>
+`;
 
     container.appendChild(section);
   });
 
-  // Re-bind Add to Cart buttons
-  document.querySelectorAll('[data-add-cart]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const { id, name, price } = btn.dataset;
-      const priceCents = Math.round(parseFloat(price) * 100);
-      Cart.addItem({ id, name, priceCents, qty: 1 });
-    });
-  });
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -253,6 +259,87 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 </script>
 
+<!-- Customer Modal Script -->
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  const custOverlay = document.getElementById("custOverlay");
+  const custQtyModal = document.getElementById("custQtyModal");
+  const custModalItemName = document.getElementById("custModalItemName");
+  const custModalUnitPrice = document.getElementById("custModalUnitPrice");
+  const custModalTotal = document.getElementById("custModalTotal");
+  const custQtyInput = document.getElementById("custQtyInput");
+
+  let custCurrentItem = null;
+
+  function openCustModal(item) {
+    custCurrentItem = item;
+
+    custModalItemName.textContent = item.item_name;
+    custModalUnitPrice.textContent = `$${Number(item.price).toFixed(2)}`;
+    custQtyInput.value = 1;
+
+    updateCustModalTotal();
+
+    custOverlay.classList.remove("hidden");
+    custQtyModal.classList.remove("hidden");
+  }
+
+  function closeCustModal() {
+    custOverlay.classList.add("hidden");
+    custQtyModal.classList.add("hidden");
+    custCurrentItem = null;
+  }
+
+  function updateCustModalTotal() {
+    const qty = Math.max(1, parseInt(custQtyInput.value || "1"));
+    const total = qty * Number(custCurrentItem?.price || 0);
+    custModalTotal.textContent = `$${total.toFixed(2)}`;
+  }
+
+  // Quantity buttons
+  document.getElementById("custQtyMinus").onclick = () => {
+    custQtyInput.value = Math.max(1, parseInt(custQtyInput.value) - 1);
+    updateCustModalTotal();
+  };
+
+  document.getElementById("custQtyPlus").onclick = () => {
+    custQtyInput.value = Math.max(1, parseInt(custQtyInput.value) + 1);
+    updateCustModalTotal();
+  };
+
+  custQtyInput.addEventListener("input", updateCustModalTotal);
+
+  document.getElementById("custModalClose").onclick = closeCustModal;
+  document.getElementById("custModalCancel").onclick = closeCustModal;
+  custOverlay.onclick = closeCustModal;
+
+  // Confirm add to cart
+  document.getElementById("custModalConfirm").onclick = () => {
+    const qty = Math.max(1, parseInt(custQtyInput.value));
+
+    Cart.addItem({
+      id: custCurrentItem.item_id,
+      name: custCurrentItem.item_name,
+      priceCents: Math.round(parseFloat(custCurrentItem.price) * 100),
+      qty
+    });
+
+    closeCustModal();
+  };
+
+  // Add-to-cart buttons trigger modal
+  document.addEventListener("click", (e) => {
+    if (e.target.matches("[data-add-cart]")) {
+      const item = {
+        item_id: e.target.dataset.id,
+        item_name: e.target.dataset.name,
+        price: e.target.dataset.price
+      };
+      openCustModal(item);
+    }
+  });
+});
+</script>
 
 <!-- Cart system -->
 <script>
@@ -288,6 +375,77 @@ const Cart = {
   }
 };
 </script>
+<!-- Customer modal -->
+
+<div id="custOverlay"
+     class="hidden fixed inset-0 bg-black/40 z-40"></div>
+
+<div id="custQtyModal"
+     class="hidden fixed inset-0 z-50 flex items-center justify-center">
+  <div class="bg-white w-[90%] max-w-md rounded-xl shadow-xl p-6 border border-gray-200">
+
+    <!-- Header -->
+    <div class="flex justify-between items-start mb-4">
+      <div>
+        <h3 id="custModalItemName" class="text-xl font-semibold text-gray-900"></h3>
+        <p class="text-sm text-gray-500">Customize your order</p>
+      </div>
+      <button id="custModalClose" class="text-gray-500 hover:text-gray-700 text-xl">✕</button>
+    </div>
+
+    <!-- Price -->
+    <div class="flex justify-between items-center mb-4">
+      <span class="text-gray-700 font-medium">Unit Price</span>
+      <span id="custModalUnitPrice" class="font-bold text-gray-900 text-lg">$0.00</span>
+    </div>
+
+    <!-- Quantity -->
+    <div class="flex justify-between items-center mb-4">
+      <span class="text-gray-700 font-medium">Quantity</span>
+      <div class="flex items-center gap-3">
+        <button id="custQtyMinus"
+                class="w-8 h-8 rounded-md border border-gray-400 hover:bg-gray-100">−</button>
+
+        <input id="custQtyInput"
+               type="number"
+               min="1"
+               value="1"
+               class="w-16 text-center border border-gray-300 rounded-md py-1" />
+
+        <button id="custQtyPlus"
+                class="w-8 h-8 rounded-md border border-gray-400 hover:bg-gray-100">+</button>
+      </div>
+    </div>
+
+    <!-- Total -->
+    <div class="flex justify-between items-center mb-6">
+      <span class="text-gray-700 font-medium">Total</span>
+      <span id="custModalTotal"
+            class="text-2xl font-bold text-gray-900">$0.00</span>
+    </div>
+
+    <!-- Buttons -->
+    <div class="flex gap-3">
+      <button id="custModalCancel"
+              class="flex-1 border border-red-400 text-red-700 bg-white/70 px-4 py-2 rounded-md shadow hover:bg-white hover:shadow-lg transition">
+        Cancel
+      </button>
+      <button id="custModalConfirm"
+              class="flex-1 border border-blue-400 text-blue-700 bg-white/70 px-4 py-2 rounded-md shadow hover:bg-white hover:shadow-lg transition">
+        Add to Cart
+      </button>
+    </div>
+
+  </div>
+</div>
+<a href="customer_cart.html"
+   class="fixed bottom-6 right-6 
+          border border-blue-400 
+          text-blue-700 bg-white/70 
+          px-4 py-2 rounded-lg shadow 
+          hover:bg-white hover:shadow-lg transition z-50">
+  Check Your Cart
+</a>
 
 </body>
 </html>
