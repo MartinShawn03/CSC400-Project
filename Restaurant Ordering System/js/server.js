@@ -69,6 +69,16 @@ async function isValidEmailDomain(email) {
   }
 }
 
+// function to execute queries with promises (ADMIN:reports)
+function executeQuery(sql, params) {
+  return new Promise((resolve, reject) => {
+    connection_pool.query(sql, params, (err, results) => {
+      if (err) reject(err);
+      else resolve(results);
+    });
+  });
+}
+
 // ---------- EMPLOYEE LOGIN ----------
 if (req.method === 'POST' && (reqPath === '/Employee/login' || reqPath === '/employee/login')) {
   let body = '';
@@ -943,6 +953,232 @@ if (req.method === 'GET' && req.url === '/api/orders/active') {
   return;
 }
 
+// ---------- ADMIN: Generate Reports ----------
+if (req.method === 'POST' && reqPath === '/Employee/reports') {
+  const session = getSessionFromCookie();
+  if (!session || String(session.role).toLowerCase() !== 'admin') {
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ success: false, message: 'Unauthorized: Admins only' }));
+  }
+
+  let body = '';
+  req.on('data', chunk => body += chunk);
+  req.on('end', () => {
+    try {
+      const { startDate, endDate } = JSON.parse(body);
+      
+      if (!startDate || !endDate) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: false, message: 'Start date and end date required' }));
+      }
+
+      // Calculate comprehensive report
+      const reportQueries = `
+        -- Total Revenue and Orders
+        SELECT 
+          COUNT(DISTINCT o.order_id) as total_orders,
+          COALESCE(SUM(m.price * o.quantity), 0) as total_revenue,
+          COALESCE(AVG(m.price * o.quantity), 0) as avg_order_value
+        FROM Orders o
+        JOIN Menu m ON o.item_id = m.item_id
+        WHERE DATE(o.order_time) BETWEEN ? AND ? AND o.status = 'Completed'
+        
+        UNION ALL
+        
+        -- Most Popular Item
+        SELECT 
+          m.item_id,
+          m.item_name,
+          SUM(o.quantity) as total_quantity
+        FROM Orders o
+        JOIN Menu m ON o.item_id = m.item_id
+        WHERE DATE(o.order_time) BETWEEN ? AND ? AND o.status = 'Completed'
+        GROUP BY m.item_id, m.item_name
+        ORDER BY total_quantity DESC
+        LIMIT 1
+        
+        UNION ALL
+        
+        -- Daily Revenue
+        SELECT 
+          DATE(o.order_time) as date,
+          SUM(m.price * o.quantity) as daily_revenue
+        FROM Orders o
+        JOIN Menu m ON o.item_id = m.item_id
+        WHERE DATE(o.order_time) BETWEEN ? AND ? AND o.status = 'Completed'
+        GROUP BY DATE(o.order_time)
+        ORDER BY date
+        
+        UNION ALL
+        
+        -- Top Selling Items
+        SELECT 
+          m.item_name,
+          SUM(o.quantity) as total_quantity,
+          SUM(m.price * o.quantity) as total_revenue
+        FROM Orders o
+        JOIN Menu m ON o.item_id = m.item_id
+        WHERE DATE(o.order_time) BETWEEN ? AND ? AND o.status = 'Completed'
+        GROUP BY m.item_id, m.item_name
+        ORDER BY total_quantity DESC
+        LIMIT 10
+        
+        UNION ALL
+        
+        -- Detailed Orders
+        SELECT 
+          o.order_id,
+          COALESCE(c.name, 'Walk-in') as customer_name,
+          GROUP_CONCAT(CONCAT(m.item_name, ' (x', o.quantity, ')') SEPARATOR ', ') as items,
+          SUM(m.price * o.quantity) as total_amount,
+          o.status,
+          o.order_time
+        FROM Orders o
+        LEFT JOIN Customers c ON o.customer_id = c.customer_id
+        JOIN Menu m ON o.item_id = m.item_id
+        WHERE DATE(o.order_time) BETWEEN ? AND ? AND o.status = 'Completed'
+        GROUP BY o.order_id
+        ORDER BY o.order_time DESC
+      `;
+
+      // Execute all queries
+      const queryPromises = [
+        executeQuery(`SELECT COUNT(DISTINCT o.order_id) as total_orders,
+          COALESCE(SUM(m.price * o.quantity), 0) as total_revenue,
+          COALESCE(AVG(m.price * o.quantity), 0) as avg_order_value
+        FROM Orders o
+        JOIN Menu m ON o.item_id = m.item_id
+        WHERE DATE(o.order_time) BETWEEN ? AND ? AND o.status = 'Completed'`, [startDate, endDate]),
+        
+        executeQuery(`SELECT m.item_name
+        FROM Orders o
+        JOIN Menu m ON o.item_id = m.item_id
+        WHERE DATE(o.order_time) BETWEEN ? AND ? AND o.status = 'Completed'
+        GROUP BY m.item_id, m.item_name
+        ORDER BY SUM(o.quantity) DESC
+        LIMIT 1`, [startDate, endDate]),
+        
+        executeQuery(`SELECT 
+          DATE(o.order_time) as date,
+          COALESCE(SUM(m.price * o.quantity), 0) as revenue
+        FROM Orders o
+        JOIN Menu m ON o.item_id = m.item_id
+        WHERE DATE(o.order_time) BETWEEN ? AND ? AND o.status = 'Completed'
+        GROUP BY DATE(o.order_time)
+        ORDER BY date`, [startDate, endDate]),
+        
+        executeQuery(`SELECT 
+          m.item_name,
+          SUM(o.quantity) as total_quantity
+        FROM Orders o
+        JOIN Menu m ON o.item_id = m.item_id
+        WHERE DATE(o.order_time) BETWEEN ? AND ? AND o.status = 'Completed'
+        GROUP BY m.item_id, m.item_name
+        ORDER BY total_quantity DESC
+        LIMIT 10`, [startDate, endDate]),
+        
+        executeQuery(`SELECT 
+          o.order_id,
+          COALESCE(c.name, 'Walk-in') as customer_name,
+          GROUP_CONCAT(CONCAT(m.item_name, ' (x', o.quantity, ')') SEPARATOR ', ') as items,
+          SUM(m.price * o.quantity) as total_amount,
+          o.status,
+          o.order_time
+        FROM Orders o
+        LEFT JOIN Customers c ON o.customer_id = c.customer_id
+        JOIN Menu m ON o.item_id = m.item_id
+        WHERE DATE(o.order_time) BETWEEN ? AND ? AND o.status = 'Completed'
+        GROUP BY o.order_id
+        ORDER BY o.order_time DESC`, [startDate, endDate])
+	 ];
+
+      Promise.all(queryPromises).then(results => {
+        const report = {
+          totalOrders: results[0][0]?.total_orders || 0,
+          totalRevenue: parseFloat(results[0][0]?.total_revenue) || 0,
+          averageOrderValue: parseFloat(results[0][0]?.avg_order_value) || 0,
+          mostPopularItem: results[1][0]?.item_name || 'No data',
+          dailyRevenue: results[2] || [],
+          topItems: results[3] || [],
+          detailedOrders: results[4] || [],
+        };
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, report }));
+      }).catch(err => {
+        console.error('Report generation error:', err);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, message: 'Error generating report' }));
+      });
+
+    } catch (e) {
+      console.error('Report parse error:', e);
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, message: 'Invalid request' }));
+    }
+  });
+  return;
+}
+
+// ---------- ADMIN: Export Reports to CSV ----------
+if (req.method === 'GET' && reqPath === '/Employee/reports/export') {
+  const session = getSessionFromCookie();
+  if (!session || String(session.role).toLowerCase() !== 'admin') {
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ success: false, message: 'Unauthorized: Admins only' }));
+  }
+
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const startDate = url.searchParams.get('startDate');
+  const endDate = url.searchParams.get('endDate');
+
+  if (!startDate || !endDate) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ success: false, message: 'Start date and end date required' }));
+  }
+
+  const sql = `
+    SELECT 
+      o.order_id,
+      COALESCE(c.name, 'Walk-in') as customer_name,
+      c.email as customer_email,
+      m.item_name,
+      o.quantity,
+      m.price as unit_price,
+      (m.price * o.quantity) as total_price,
+      o.status,
+      o.order_time
+    FROM Orders o
+    LEFT JOIN Customers c ON o.customer_id = c.customer_id
+    JOIN Menu m ON o.item_id = m.item_id
+    WHERE DATE(o.order_time) BETWEEN ? AND ? AND o.status = 'Completed'
+    ORDER BY o.order_time DESC
+  `;
+
+  connection_pool.query(sql, [startDate, endDate], (err, rows) => {
+    if (err) {
+      console.error('Export error:', err);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: false, message: 'Database error' }));
+    }
+
+    // Generate CSV
+    let csv = 'Order ID,Customer Name,Email,Item,Quantity,Unit Price,Total Price,Order Time\n';
+    rows.forEach(row => {
+      const orderTime = new Date(row.order_time);
+      const formattedTime = orderTime.toISOString().replace('T', ' ').replace(/\.\d+Z$/, '');
+
+      csv += `"${row.order_id}","${row.customer_name}","${row.customer_email}","${row.item_name}",${row.quantity},${row.unit_price},${row.total_price},"${formattedTime}"\n`;
+    });
+
+    res.writeHead(200, {
+      'Content-Type': 'text/csv',
+      'Content-Disposition': `attachment; filename="Restaurant Report ${startDate} to ${endDate}.csv"`
+    });
+    res.end(csv);
+  });
+  return;
+}
 
   // ---------- Static file handler ----------
   let filePath = path.join(baseDir, 'public_html', reqPath.replace(/^\/+/, ''));
