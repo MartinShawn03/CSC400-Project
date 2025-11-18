@@ -653,43 +653,6 @@ if (req.method === 'POST' && req.url === '/api/logout') {
 }
 
   // ---------- EMPLOYEE: Create Order (manual entry) ----------
-/*
-  if (req.method === 'POST' && req.url === '/api/employee/createOrder') {
-    let body = '';
-    req.on('data', chunk => body += chunk);
-    req.on('end', () => {
-      try {
-        const { customer_id = null, item_id, quantity } = JSON.parse(body);
-
-        if (!item_id || !quantity) {
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          return res.end(JSON.stringify({ success: false, message: 'Missing fields' }));
-        }
-
-        const sql = `
-          INSERT INTO Orders (customer_id, item_id, quantity, status)
-          VALUES (?, ?, ?, 'Pending')
-        `;
-
-        connection_pool.query(sql, [customer_id, item_id, quantity], (err) => {
-          if (err) {
-            console.error('DB Insert Error:', err);
-            res.writeHead(500, { 'Content-Type': 'application/json' });
-            return res.end(JSON.stringify({ success: false, message: 'Database error' }));
-          }
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ success: true, message: 'Order created successfully' }));
-        });
-
-      } catch (e) {
-        console.error('JSON Parse Error:', e);
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: false, message: 'Invalid JSON' }));
-      }
-    });
-    return;
-  }
-*/
 
 if (req.method === 'POST' && req.url === '/api/employee/createOrder') {
   let body = '';
@@ -792,26 +755,6 @@ if (req.method === 'POST' && req.url === '/api/employee/createOrder') {
 
  
   // ---------- EMPLOYEE: Fetch all pending orders ----------
-/*  if (req.method === 'GET' && req.url === '/api/orders/pending') {
-    const sql = `
-      SELECT order_id, customer_id, item_id,  quantity, status, order_time
-      FROM Orders
-      WHERE status = 'Pending'
-      ORDER BY order_time DESC
-    `;
-    connection_pool.query(sql, (err, rows) => {
-      if (err) {
-        console.error('DB Fetch Error:', err);
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ success: false, message: 'Database error' }));
-      }
-
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: true, orders: rows }));
-    });
-    return;
-  }
-*/
 
   if (req.method === 'GET' && req.url === '/api/orders/pending') {
   const sql = `
@@ -893,7 +836,6 @@ if (req.method === 'POST' && req.url === '/api/employee/createOrder') {
     return;
   }
 
-// ---------- CUSTOMER: Checkout ----------
 
 // ---------- CUSTOMER: Checkout ----------
 if (req.method === 'POST' && req.url === '/api/checkout') {
@@ -1027,192 +969,7 @@ if (req.method === 'POST' && req.url === '/api/checkout') {
 
 
 
-
-
-
-
-
-
-/*if (req.method === 'POST' && req.url === '/api/checkout') {
-  let body = '';
-  req.on('data', chunk => body += chunk);
-  req.on('end', () => {
-    try {
-      const { customer, items } = JSON.parse(body);
-
-      if (!items || !items.length) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ success: false, message: 'Cart is empty' }));
-      }
-
-      // Check if customer exists by email
-      connection_pool.query(
-        'SELECT customer_id FROM Customers WHERE email = ? LIMIT 1',
-        [customer.email],
-        (err, rows) => {
-          if (err) {
-            console.error('DB Error (customer check):', err);
-            res.writeHead(500, { 'Content-Type': 'application/json' });
-            return res.end(JSON.stringify({ success: false, message: 'Database error' }));
-          }
-          const createOrder = (customerId) => {
-
-            // 1. Create ONE order in Orders
-            const orderSQL = 'INSERT INTO Orders (customer_id, status) VALUES (?, "Pending")';
-            connection_pool.query(orderSQL, [customerId], (err2, result) => {
-              if (err2) {
-                console.error('DB Error (insert order):', err2);
-                res.writeHead(500, { 'Content-Type': 'application/json' });
-                return res.end(JSON.stringify({ success: false, message: 'Database error creating order' }));
-              }
-
-              const orderId = result.insertId;
-
-              // 2. Insert items into OrderItems
-              const values = items.map(i => [orderId, i.item_id, i.quantity,i.price]);
-
-              connection_pool.query(
-               // 'INSERT INTO OrderItems (order_id, item_id, quantity) VALUES ?',
-                'INSERT INTO OrderItems (order_id, item_id, quantity, price) VALUES ?',
-                [values],
-                (err3) => {
-                  if (err3) {
-                    console.error('DB Error (insert order items):', err3);
-                    res.writeHead(500, { 'Content-Type': 'application/json' });
-                    return res.end(JSON.stringify({ success: false, message: 'Failed to save order items' }));
-                  }
-
-                  // Success
-                  res.writeHead(200, { 'Content-Type': 'application/json' });
-                  res.end(JSON.stringify({
-                    success: true,
-                    message: 'Order placed successfully!',
-                    order_id: orderId
-                  }));
-                }
-              );
-            });
-          };
-
-          if (rows.length > 0) {
-            // Customer exists
-            createOrder(rows[0].customer_id);
-          } else {
-            // Create new customer first
-            const insertCustomerSQL = 'INSERT INTO Customers (name, email, phone) VALUES (?, ?, ?)';
-            connection_pool.query(insertCustomerSQL, [customer.name, customer.email, customer.phone || null], (err3, result) => {
-              if (err3) {
-                console.error('DB Error (insert customer):', err3);
-                res.writeHead(500, { 'Content-Type': 'application/json' });
-                return res.end(JSON.stringify({ success: false, message: 'Database error creating customer' }));
-              }
-              createOrder(result.insertId);
-            });
-          }
-        }
-      );
-
-    } catch (e) {
-      console.error('Checkout Parse Error:', e);
-      res.writeHead(400, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: false, message: 'Invalid JSON' }));
-    }
-  });
-  return;
-}          
-
-*/
-
-          /*
-          const createOrder = (customerId) => {
-            // Insert all items into Orders table
-            const values = items.map(i => [customerId, i.item_id, i.quantity, 'Pending']);
-            connection_pool.query(
-              'INSERT INTO Orders (customer_id, item_id, quantity, status) VALUES ?',
-              [values],
-              (err2) => {
-                if (err2) {
-                  console.error('DB Error (insert orders):', err2);
-                  res.writeHead(500, { 'Content-Type': 'application/json' });
-                  return res.end(JSON.stringify({ success: false, message: 'Database error' }));
-                }
-
-                res.writeHead(200, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ success: true, message: 'Order placed successfully!' }));
-              }
-            );
-          };
-
-          if (rows.length > 0) {
-            // Customer exists
-            createOrder(rows[0].customer_id);
-          } else {
-            // Create new customer first
-            const insertCustomerSQL = 'INSERT INTO Customers (name, email, phone) VALUES (?, ?, ?)';
-            connection_pool.query(insertCustomerSQL, [customer.name, customer.email, customer.phone || null], (err3, result) => {
-              if (err3) {
-                console.error('DB Error (insert customer):', err3);
-                res.writeHead(500, { 'Content-Type': 'application/json' });
-                return res.end(JSON.stringify({ success: false, message: 'Database error creating customer' }));
-              }
-              createOrder(result.insertId);
-            });
-          }
-        }
-      );
-
-    } catch (e) {
-      console.error('Checkout Parse Error:', e);
-      res.writeHead(400, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: false, message: 'Invalid JSON' }));
-    }
-  });
-  return;
-}
-*/
-
-
-
 // ---------- CUSTOMER: Fetch their orders ----------
-/*
-if (req.method === 'POST' && req.url === '/api/orders/customer') {
-  let body = '';
-  req.on('data', chunk => body += chunk);
-  req.on('end', () => {
-    try {
-      const { email } = JSON.parse(body);
-
-      if (!email) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ success: false, message: 'Email required' }));
-      }
-
-      const sql = `
-        SELECT o.order_id, m.item_name, o.quantity AS quantity, o.status, o.order_time
-        FROM Orders o
-        JOIN Menu m ON o.item_id = m.item_id
-        JOIN Customers c ON o.customer_id = c.customer_id
-        WHERE c.email = ?
-        ORDER BY o.order_time DESC
-      `;
-
-      connection_pool.query(sql, [email], (err, orders) => {
-        if (err) {
-          res.writeHead(500, { 'Content-Type': 'application/json' });
-          return res.end(JSON.stringify({ success: false, message: 'Database error' }));
-        }
-
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: true, orders }));
-      });
-    } catch (e) {
-      res.writeHead(400, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: false, message: 'Invalid JSON' }));
-    }
-  });
-  return;
-}
-*/
 if (req.method === 'POST' && req.url === '/api/orders/customer') {
   let body = '';
   req.on('data', chunk => body += chunk);
@@ -1355,38 +1112,6 @@ if (req.method === 'GET' && (reqPath === '/qr.png' || reqPath === '/qr')) {
   return;
 }
 
-
-// ---------- EMPLOYEE: Fetch active orders (Pending + In Progress) ----------
-/* if (req.method === 'GET' && req.url === '/api/orders/active') {
-  const sql = `
-    SELECT
-      o.order_id,
-      o.customer_id,
-      o.item_id,
-      o.quantity,
-      o.status,
-      o.order_time,
-      COALESCE(c.name, 'Walk-in') AS customer_name,
-      m.item_name
-    FROM Orders o
-    LEFT JOIN Customers c ON o.customer_id = c.customer_id
-    LEFT JOIN Menu m ON o.item_id = m.item_id
-    WHERE o.status IN ('Pending', 'In Progress')
-    ORDER BY o.order_time DESC
-  `;
-  connection_pool.query(sql, (err, rows) => {
-    if (err) {
-      console.error('DB Fetch Error:', err);
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ success: false }));
-    }
-
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ success: true, orders: rows }));
-  });
-  return;
-}
-*/
 
 
 // ---------- EMPLOYEE: Fetch active orders (Pending + In Progress) ----------
