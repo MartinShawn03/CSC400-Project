@@ -126,39 +126,43 @@
         card.className = "bg-white shadow rounded-lg overflow-hidden flex flex-col border border-gray-200 transition";
 
         const isInProgress = o.status === "In Progress";
+          
+          card.innerHTML = `
+          <div class="p-4 flex flex-col h-full">
 
-        card.innerHTML = `
-          <div class="p-4 flex flex-col gap-2">
-            <div class="flex items-center justify-between">
-              <h3 class="font-semibold text-gray-800">
-                #${o.order_id} — ${o.item_name} × ${o.quantity}
-              </h3>
-              ${statusPill(o.status)}
-            </div>
-
-            <p class="text-sm text-gray-700">
-              <span class="font-medium">Customer:</span> ${o.customer_name}
-            </p>
-
-            <p class="text-xs text-gray-500">Placed: ${fmtTime(o.order_time)}</p>
-
-            <div class="flex gap-2 mt-2">
-              <button class="inprogress-btn flex-1 px-3 py-1 rounded text-white
-                      ${isInProgress ? "bg-blue-400 cursor-not-allowed opacity-50" : "bg-blue-600 hover:bg-blue-700"}">
-                In Progress
-              </button>
-
-              <button class="confirm-btn flex-1 bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 transition">
-                Confirm
-              </button>
-
-              <button class="cancel-btn flex-1 bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 transition">
-                Cancel
-              </button>
-            </div>
+              <div class="flex items-center justify-between mb-1">
+               <h3 class="font-semibold text-gray-800">#${o.order_id}</h3>
+               ${statusPill(o.status)}
           </div>
-        `;
+          <div class="items-list flex-1 overflow-y-auto max-h-24 text-sm text-gray-700 ml-1 mb-2">
+             ${o.items.map(it => `
+              <div>• ${it.item_name} × ${it.quantity}</div>
+          `).join('')}
+           <div class="pointer-events-none absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-white to-transparent"></div>
+         </div>
 
+         <p class="text-sm text-gray-700 mb-1">
+           <span class="font-medium">Customer:</span> ${o.customer_name}
+         </p>
+
+         <p class="text-xs text-gray-500 mb-3">Placed: ${fmtTime(o.order_time)}</p>
+
+        <div class="flex gap-2 mt-auto">
+          <button class="inprogress-btn flex-1 px-3 py-1 rounded text-white
+           ${isInProgress ? "bg-blue-400 cursor-not-allowed opacity-50" : "bg-blue-600 hover:bg-blue-700"}">
+           In Progress
+        </button>
+
+        <button class="confirm-btn flex-1 bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 transition">
+         Confirm
+        </button>
+
+        <button class="cancel-btn flex-1 bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 transition">
+         Cancel
+        </button>
+    </div>
+  </div>
+`;
 
           const inProgressBtn = card.querySelector('.inprogress-btn');
           const confirmBtn    = card.querySelector('.confirm-btn');
