@@ -120,10 +120,20 @@ return `
         $${parseFloat(item.price).toFixed(2)}
       </p>
 
-      <div class="mt-4 flex justify-between">
+      <div class="mt-4 flex justify-between gap-2">
         <button onclick="toggleItem(${item.item_id}, ${item.available ? 0 : 1})"
             class="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600">
           ${item.available ? 'Hide' : 'Show'}
+        </button>
+
+        <button
+          class="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
+          data-edit-item
+          data-id="${item.item_id}"
+          data-name="${item.item_name}"
+          data-description="${item.description || ''}"
+          data-price="${item.price}">
+          Edit
         </button>
 
         <button onclick="deleteItem(${item.item_id})"
@@ -190,6 +200,98 @@ function setupAddForm() {
     }
   });
 }
+// Edit item (name, description, price) — open modal instead of prompt
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-edit-item]");
+  if (!btn) return;
+
+  const id = btn.dataset.id;
+  const name = btn.dataset.name || "";
+  const desc = btn.dataset.description || "";
+  const price = btn.dataset.price || "";
+
+  openEditModal(id, name, desc, price);
+});
+
+
+// edit modal logic
+
+let editItemId = null;
+
+function openEditModal(id, name, description, price) {
+  editItemId = id;
+
+  document.getElementById("editName").value = name;
+  document.getElementById("editDescription").value = description;
+  document.getElementById("editPrice").value = price;
+
+  document.getElementById("editModalOverlay").classList.remove("hidden");
+  document.getElementById("editModal").classList.remove("hidden");
+}
+
+function closeEditModal() {
+  document.getElementById("editModalOverlay").classList.add("hidden");
+  document.getElementById("editModal").classList.add("hidden");
+}
+
+async function submitEdit() {
+  const updatedItem = {
+    item_name: document.getElementById("editName").value.trim(),
+    description: document.getElementById("editDescription").value.trim(),
+    price: document.getElementById("editPrice").value.trim()
+  };
+
+  const res = await fetch(`/Employee/menu/${editItemId}/edit`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(updatedItem)
+  });
+
+  const result = await res.json();
+
+  if (result.success) {
+    closeEditModal();
+    loadMenu();
+    alert("Item updated successfully!");
+  } else {
+    alert(result.message || "Update failed.");
+  }
+}
+
+
 </script>
+
+<!-- EDIT MODAL -->
+<div id="editModalOverlay" class="hidden fixed inset-0 bg-black/40 z-40"></div>
+
+<div id="editModal" class="hidden fixed inset-0 z-50 flex items-center justify-center">
+  <div class="bg-white w-[90%] max-w-md rounded-lg shadow-xl p-6 border border-gray-200">
+
+    <h2 class="text-xl font-semibold mb-4">Edit Menu Item</h2>
+
+    <label class="block mb-2 text-sm font-medium text-gray-700">Name</label>
+    <input id="editName" class="w-full border p-2 rounded mb-3" type="text">
+
+    <label class="block mb-2 text-sm font-medium text-gray-700">Description</label>
+    <textarea id="editDescription" class="w-full border p-2 rounded mb-3"></textarea>
+
+    <label class="block mb-2 text-sm font-medium text-gray-700">Price ($)</label>
+    <input id="editPrice" class="w-full border p-2 rounded mb-5" type="number" step="0.01">
+
+    <div class="flex justify-end gap-3">
+      <button onclick="closeEditModal()" 
+              class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">
+        Cancel
+      </button>
+
+      <button onclick="submitEdit()" 
+              class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+        Save
+      </button>
+    </div>
+
+  </div>
+</div>
+
 </body>
 </html>
