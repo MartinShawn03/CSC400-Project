@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Reports</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-gray-50 font-sans">
+  <header class="bg-white shadow p-4 flex justify-between items-center">
+    <h1 class="text-2xl font-bold text-gray-800">Restaurant Reports</h1>
+    <div class="flex gap-4">
+      <a href="/Employee/admin_main.html" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Back to Dashboard</a>
+      <button id="logoutBtn" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600">Logout</button>
+    </div>
+  </header>
+
+  <main class="p-6 max-w-7xl mx-auto">
+    <!-- Date Range Selector -->
+    <div class="bg-white p-6 rounded-lg shadow mb-6">
+      <h2 class="text-xl font-bold mb-4">Report Period</h2>
+      <div class="flex flex-wrap gap-4 items-center">
+        <div>
+          <label class="block text-sm font-medium text-gray-700">From Date</label>
+          <input type="date" id="startDate" class="mt-1 block w-full border border-gray-300 rounded-md p-2">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700">To Date</label>
+          <input type="date" id="endDate" class="mt-1 block w-full border border-gray-300 rounded-md p-2">
+        </div>
+        <button id="generateReport" class="bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700 mt-6">
+          Generate Report
+        </button>
+        <button id="exportReport" class="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 mt-6">
+          Export to CSV
+        </button>
+      </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+      <div class="bg-white p-6 rounded-lg shadow">
+        <h3 class="text-lg font-semibold text-gray-600">Total Revenue</h3>
+        <p id="totalRevenue" class="text-3xl font-bold text-green-600">$0.00</p>
+      </div>
+      <div class="bg-white p-6 rounded-lg shadow">
+        <h3 class="text-lg font-semibold text-gray-600">Total Orders</h3>
+        <p id="totalOrders" class="text-3xl font-bold text-blue-600">0</p>
+      </div>
+      <div class="bg-white p-6 rounded-lg shadow">
+        <h3 class="text-lg font-semibold text-gray-600">Avg Order Value</h3>
+        <p id="avgOrderValue" class="text-3xl font-bold text-purple-600">$0.00</p>
+      </div>
+      <div class="bg-white p-6 rounded-lg shadow">
+        <h3 class="text-lg font-semibold text-gray-600">Popular Item</h3>
+        <p id="popularItem" class="text-xl font-bold text-amber-600">-</p>
+      </div>
+    </div>
+
+    <!-- Charts Section -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+      <div class="bg-white p-6 rounded-lg shadow">
+        <h3 class="text-lg font-semibold mb-4">Revenue Over Time</h3>
+        <canvas id="revenueChart" height="250"></canvas>
+      </div>
+      <div class="bg-white p-6 rounded-lg shadow">
+        <h3 class="text-lg font-semibold mb-4">Top Selling Items</h3>
+        <canvas id="itemsChart" height="250"></canvas>
+      </div>
+    </div>
+
+    <!-- Detailed Reports -->
+    <div class="bg-white p-6 rounded-lg shadow mb-6">
+      <h3 class="text-lg font-semibold mb-4">Order Details</h3>
+      <div class="overflow-x-auto">
+        <table class="min-w-full table-auto">
+          <thead class="bg-gray-50">
+            <tr>
+              <th class="px-4 py-2 text-left">Order ID</th>
+              <th class="px-4 py-2 text-left">Customer</th>
+              <th class="px-4 py-2 text-left">Items</th>
+              <th class="px-4 py-2 text-left">Total</th>
+              <th class="px-4 py-2 text-left">Status</th>
+              <th class="px-4 py-2 text-left">Date</th>
+            </tr>
+          </thead>
+          <tbody id="ordersTableBody" class="divide-y divide-gray-200">
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // Set default dates (last 30 days)
+    const today = new Date();
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(today.getDate() - 30);
+
+    document.getElementById('startDate').value = thirtyDaysAgo.toISOString().split('T')[0];
+    document.getElementById('endDate').value = today.toISOString().split('T')[0];
+
+    let revenueChart, itemsChart;
+
+    document.getElementById('generateReport').addEventListener('click', generateReport);
+    document.getElementById('exportReport').addEventListener('click', exportToCSV);
+    document.getElementById('logoutBtn').addEventListener('click', logout);
+
+    // Generate initial report on page load
+    document.addEventListener('DOMContentLoaded', generateReport);
+
+    async function generateReport() {
+      const startDate = document.getElementById('startDate').value;
+      const endDate = document.getElementById('endDate').value;
+
+      if (!startDate || !endDate) {
+        alert('Please select both start and end dates');
+        return;
+      }
+
+      try {
+        const response = await fetch('/Employee/reports', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ startDate, endDate })
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch report data');
+        }
+
+        const data = await response.json();
+
+        if (data.success) {
+          updateDashboard(data.report);
+          updateCharts(data.report);
+          updateOrdersTable(data.report.detailedOrders);
+        } else {
+          alert('Error generating report: ' + data.message);
+        }
+      } catch (error) {
+        console.error('Error:', error);
+        alert('Failed to generate report');
+      }
+    }
+
+    function updateDashboard(report) {
+      document.getElementById('totalRevenue').textContent = `$${report.totalRevenue.toFixed(2)}`;
+      document.getElementById('totalOrders').textContent = report.totalOrders;
+      document.getElementById('avgOrderValue').textContent = `$${report.averageOrderValue.toFixed(2)}`;
+      document.getElementById('popularItem').textContent = report.mostPopularItem || '-';
+    }
+
+    function updateCharts(report) {
+      // Revenue Chart
+      const revenueCtx = document.getElementById('revenueChart').getContext('2d');
+      if (revenueChart) revenueChart.destroy();
+      
+      revenueChart = new Chart(revenueCtx, {
+        type: 'line',
+        data: {
+          labels: report.dailyRevenue.map(day => day.date),
+          datasets: [{
+            label: 'Daily Revenue',
+            data: report.dailyRevenue.map(day => day.revenue),
+            borderColor: 'rgb(34, 197, 94)',
+            backgroundColor: 'rgba(34, 197, 94, 0.1)',
+            tension: 0.1
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: {
+              position: 'top',
+            }
+          }
+        }
+      });
+
+      // Items Chart
+      const itemsCtx = document.getElementById('itemsChart').getContext('2d');
+      if (itemsChart) itemsChart.destroy();
+      
+      itemsChart = new Chart(itemsCtx, {
+        type: 'bar',
+        data: {
+          labels: report.topItems.map(item => item.item_name),
+          datasets: [{
+            label: 'Quantity Sold',
+            data: report.topItems.map(item => item.total_quantity),
+            backgroundColor: 'rgba(59, 130, 246, 0.8)'
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: {
+              position: 'top',
+            }
+          }
+        }
+      });
+    }
+
+    function updateOrdersTable(orders) {
+      const tbody = document.getElementById('ordersTableBody');
+      tbody.innerHTML = '';
+
+      orders.forEach(order => {
+        const row = document.createElement('tr');
+        row.className = 'hover:bg-gray-50';
+        row.innerHTML = `
+          <td class="px-4 py-2">${order.order_id}</td>
+          <td class="px-4 py-2">${order.customer_name || 'Walk-in'}</td>
+          <td class="px-4 py-2">${order.items}</td>
+          <td class="px-4 py-2">$${order.total_amount}</td>
+          <td class="px-4 py-2">
+            <span class="px-2 py-1 rounded text-xs ${
+              order.status === 'Completed' ? 'bg-green-100 text-green-800' :
+              order.status === 'In Progress' ? 'bg-yellow-100 text-yellow-800' :
+              'bg-red-100 text-red-800'
+            }">${order.status}</span>
+          </td>
+          <td class="px-4 py-2">${new Date(order.order_time).toLocaleDateString()}</td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+
+    async function exportToCSV() {
+      const startDate = document.getElementById('startDate').value;
+      const endDate = document.getElementById('endDate').value;
+
+      try {
+        const response = await fetch(`/Employee/reports/export?startDate=${startDate}&endDate=${endDate}`);
+        if (response.ok) {
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `restaurant-report-${startDate}-to-${endDate}.csv`;
+          document.body.appendChild(a);
+          a.click();
+          window.URL.revokeObjectURL(url);
+          document.body.removeChild(a);
+        } else {
+          alert('Failed to export report');
+        }
+      } catch (error) {
+        console.error('Export error:', error);
+        alert('Failed to export report');
+      }
+    }
+
+    async function logout() {
+      await fetch('/Employee/logout', { method: 'POST' });
+      window.location.href = '/Employee/employee_login.html';
+    }
+  </script>
+</body>
+</html>
