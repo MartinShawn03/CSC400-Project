@@ -1381,8 +1381,8 @@ if (req.method === 'GET' && reqPath === '/Employee/reports/export') {
           },
           quantity: item.quantity,
         })),
-        success_url: `http://136.113.3.49/Customer/success.html?order_id=${order_id}`,
-        cancel_url: `http://136.113.3.49/Customer/cancel.html`,
+        success_url: `http://136.113.3.49/Customer/customer_main.html?payment=success&order=${order_id}`,
+        cancel_url:  `http://136.113.3.49/Customer/customer_main.html?payment=cancelled`,
         metadata: { order_id: String(order_id) },
       });
 
