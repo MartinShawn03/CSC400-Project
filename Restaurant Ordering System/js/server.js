@@ -635,7 +635,6 @@ if (req.method === 'POST' && req.url === '/api/login') {
                 `session=; HttpOnly; Path=/; Max-Age=0` // Clear employee session
               ]
             });
-            res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ success: true, user }));
           });
         }
