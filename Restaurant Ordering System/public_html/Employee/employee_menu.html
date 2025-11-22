@@ -9,34 +9,46 @@
 <body class="bg-gray-50 font-sans">
   
   <!-- Header -->
-  <header class="bg-white shadow p-4 flex justify-between items-center">
-    <h1 class="text-2xl font-bold text-gray-800">Employee Menu</h1>
-    <div class="flex gap-2">
+<header class="bg-white shadow-sm border-b-2 border-indigo-600 sticky top-0">
+  <div class="max-w-6xl mx-auto px-6 py-4 flex justify-between items-center">
+    <div class="flex items-center gap-2">
+      <i class="fas fa-utensils text-2xl text-indigo-600"></i>
+      <h1 class="text-2xl font-bold text-gray-800">Employee Menu</h1>
+    </div>
+
+    <div class="flex gap-3">
       <a href="employee_main.html"
-      class="bg-gray-100 text-gray-800 px-3 py-1 rounded border border-gray-300 hover:bg-gray-200 transition text-sm">
-      Home
+        class="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition flex items-center gap-2">
+        <i class="fas fa-home"></i>Home
       </a>
+
       <a href="employee_order.html"
-         class="bg-gray-100 text-gray-800 px-3 py-1 rounded border border-gray-300 hover:bg-gray-200 transition text-sm">
-         View Orders
+        class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition flex items-center gap-2">
+        <i class="fas fa-receipt"></i>Orders
       </a>
+
       <a href="employee_login.html"
-         class="bg-blue-600 text-white px-3 py-1 rounded shadow hover:bg-blue-700 transition text-sm">
-         Logout
+        class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition flex items-center gap-2">
+        <i class="fas fa-sign-out-alt"></i>Logout
       </a>
     </div>
-  </header>
+  </div>
+</header>
   
   <!-- Main Section -->
-  <main class="p-6 max-w-6xl mx-auto text-center">
-    <h2 class="text-xl font-semibold text-gray-700 mb-6">Available Menu Items</h2>
-<!-- Category Filter -->
-<div class="flex justify-end mb-6">
-  <select id="categoryFilter"
-          class="border px-3 py-2 rounded-lg bg-white shadow-sm">
-    <option value="all">All Categories</option>
-  </select>
-</div>
+<main class="max-w-6xl mx-auto px-6 py-8">
+
+  <div class="flex justify-between items-center mb-8">
+    <div>
+      <h2 class="text-3xl font-bold text-gray-800">Menu Items</h2>
+      <p class="text-gray-600">Browse items and add orders for walk-in customers.</p>
+    </div>
+
+    <select id="categoryFilter"
+      class="border border-gray-300 px-4 py-2 rounded-lg shadow-sm bg-white focus:outline-none focus:border-indigo-500">
+      <option value="all">All Categories</option>
+    </select>
+  </div>
 
 
 <!-- Grouped Menu Container -->
@@ -44,9 +56,9 @@
 
   </main>
 
-  <footer class="bg-white border-t border-gray-200 text-center py-3 text-sm text-gray-600">
-    &copy; 2025 Self Service Ordering | Employee Portal
-  </footer>
+<footer class="bg-white border-t mt-10 border-gray-300 py-4 text-center text-gray-600 text-sm">
+  © 2025 Self-Service Ordering System — Employee Portal
+</footer>
 
 
   <!-- ===== Modal (centered) + Overlay ===== -->
@@ -255,31 +267,31 @@ function renderMenu(selectedCategory = "all") {
   sortedCategories.forEach(cat => {
     const section = document.createElement("section");
 
-    const itemsHtml = groups[cat].map(item => `
-      <div class="bg-white shadow rounded-lg overflow-hidden flex flex-col border border-gray-200">
-        <img src="/image/${item.image}" 
-             class="w-full h-40 object-cover"/>
+const itemsHtml = groups[cat].map(item => `
+  <div class="bg-white rounded-lg shadow-md hover:shadow-lg transition border border-gray-200 overflow-hidden flex flex-col">
 
-        <div class="p-4 flex flex-col flex-grow">
-          <h3 class="font-semibold text-gray-900">${item.item_name}</h3>
-          <p class="text-xs text-gray-600 flex-grow">${item.description || ""}</p>
+    <img src="/image/${item.image}" class="w-full h-44 object-cover bg-gray-100">
 
-          <div class="flex justify-between items-center mt-3">
-            <span class="font-bold text-gray-800">$${Number(item.price).toFixed(2)}</span>
+    <div class="p-5 flex flex-col flex-grow">
+      <h3 class="text-lg font-bold text-gray-900 mb-1">${item.item_name}</h3>
+      <p class="text-sm text-gray-600 flex-grow">${item.description || "No description available."}</p>
 
-            <!-- Employee ADD BUTTON (opens modal instead of adding directly) -->
-            <button class="bg-blue-600 text-white px-3 py-1 rounded-md text-sm hover:bg-blue-700 transition"
-              onclick='openModal(${JSON.stringify(item)})'>
-              Add Order
-            </button>
+      <div class="mt-4 flex justify-between items-center">
+        <span class="text-indigo-600 font-bold text-lg">$${Number(item.price).toFixed(2)}</span>
 
-          </div>
-        </div>
+        <button
+          onclick='openModal(${JSON.stringify(item)})'
+          class="bg-blue-600 text-white px-3 py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 transition">
+          Add
+        </button>
       </div>
-    `).join("");
+    </div>
+
+  </div>
+`).join("");
 
     section.innerHTML = `
-      <h2 class="text-xl font-bold mb-3 text-left">${cat}</h2>
+<h2 class="text-2xl font-bold text-gray-800 mb-4 border-b-2 border-indigo-600 pb-1">${cat}</h2>
       <div class="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
         ${itemsHtml}
       </div>
