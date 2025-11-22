@@ -7,6 +7,9 @@ const formidable = require('formidable');
 const bcrypt = require('bcrypt');
 const QRCode = require('qrcode');
 const dns = require('dns').promises;
+require('dotenv').config();                   
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
 
 const baseDir = path.resolve(__dirname, '..');
 
