@@ -7,6 +7,9 @@ const formidable = require('formidable');
 const bcrypt = require('bcrypt');
 const QRCode = require('qrcode');
 const dns = require('dns').promises;
+require('dotenv').config();                   
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
 
 const baseDir = path.resolve(__dirname, '..');
 
@@ -1358,6 +1361,98 @@ if (req.method === 'GET' && reqPath === '/Employee/reports/export') {
   });
   return;
 }
+
+   if (req.method === 'POST' && req.url === '/api/create-checkout-session') {
+  let body = '';
+  req.on('data', chunk => body += chunk);
+  req.on('end', async () => {
+    try {
+      const { order_id, items, customer_email } = JSON.parse(body);
+
+      if (!order_id || !items?.length || !customer_email) {
+        return res.end(JSON.stringify({ success: false, message: 'Missing data' }));
+      }
+
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        mode: 'payment',
+        customer_email,
+        line_items: items.map(item => ({
+          price_data: {
+            currency: 'usd',
+            product_data: { name: item.item_name || 'Menu Item' },
+            unit_amount: Math.round(item.price * 100), // dollars → cents
+          },
+          quantity: item.quantity,
+        })),
+        success_url: `http://136.113.3.49/Customer/customer_main.html?payment=success&order=${order_id}`,
+        cancel_url:  `http://136.113.3.49/Customer/customer_main.html?payment=cancelled`,
+        metadata: { order_id: String(order_id) },
+      });
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, url: session.url }));
+    } catch (err) {
+      console.error('Stripe error:', err.message);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, message: 'Payment failed' }));
+    }
+  });
+  return;
+}
+
+// 2. Webhook — automatically marks order as Completed when paid
+if (req.method === 'POST' && req.url === '/webhook/stripe') {
+  const sig = req.headers['stripe-signature'];
+  let event;
+  const chunks = [];
+
+  req.on('data', chunk => chunks.push(chunk));
+  req.on('end', async () => {
+    const rawBody = Buffer.concat(chunks);
+
+    try {
+      event = stripe.webhooks.constructEvent(rawBody, sig, STRIPE_WEBHOOK_SECRET);
+    } catch (err) {
+      console.error('Webhook signature failed:', err.message);
+      res.writeHead(400);
+      return res.end(`Webhook Error: ${err.message}`);
+    }
+
+    if (event.type === 'checkout.session.completed') {
+      const orderId = event.data.object.metadata.order_id;
+      if (orderId) {
+        connection_pool.query(
+          `UPDATE Orders SET status = 'Completed', paid_at = NOW() WHERE order_id = ?`,
+          [orderId],
+          (err) => {
+            if (err) console.error('DB update failed:', err);
+            else console.log(`Order ${orderId} PAID & COMPLETED via Stripe`);
+          }
+        );
+      }
+    }
+
+    res.writeHead(200);
+    res.end('OK');
+  });
+  return;
+}
+
+// 3. Serve success & cancel pages
+if (reqPath === '/Customer/success.html' || reqPath === '/Customer/cancel.html') {
+  const file = path.join(baseDir, 'public_html', reqPath);
+  fs.readFile(file, (err, data) => {
+    if (err) {
+      res.writeHead(404); res.end('Not found');
+    } else {
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      res.end(data);
+    }
+  });
+  return;
+}
+  
 
   // ---------- Static file handler ----------
   let filePath = path.join(baseDir, 'public_html', reqPath.replace(/^\/+/, ''));
