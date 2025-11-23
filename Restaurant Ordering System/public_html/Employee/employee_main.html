@@ -6,22 +6,53 @@
   <title>Employee Dashboard</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-50 font-sans">
-  <header class="bg-white shadow p-4 flex justify-between items-center">
-    <h1 class="text-2xl font-bold text-gray-800">Employee Dashboard</h1>
-    <button id="logoutBtn" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600">Logout</button>
-  </header>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<body class="font-sans bg-gray-50 min-h-screen">
 
-  <main class="p-6 max-w-4xl mx-auto text-center">
-    <h2 class="text-3xl font-bold mb-4 text-gray-800">Manage Our Restaurant</h2>
-    <p class="text-gray-600 mb-6">Access orders and menu options below.</p>
-
-    <div class="space-x-4">
-      <a href="employee_menu.html" class="bg-blue-600 text-white px-6 py-3 rounded hover:bg-blue-700">View Menu</a>
-      <a href="employee_order.html" class="bg-green-600 text-white px-6 py-3 rounded hover:bg-green-700">View Orders</a>
+<!-- HEADER -->
+<header class="bg-white shadow-sm border-b-2 border-indigo-600 sticky top-0">
+  <div class="max-w-6xl mx-auto px-6 py-4 flex justify-between items-center">
+    <div class="flex items-center gap-2">
+      <i class="fas fa-utensils text-2xl text-indigo-600"></i>
+      <h1 class="text-2xl font-bold text-gray-800">Employee Dashboard</h1>
     </div>
-  </main>
 
+    <button id="logoutBtn"
+      class="bg-red-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-red-600 transition">
+      Logout
+    </button>
+  </div>
+</header>
+
+<!-- MAIN CONTENT -->
+<main class="max-w-6xl mx-auto px-6 py-10 text-center">
+  <h2 class="text-3xl font-bold text-gray-800 mb-3">Manage Restaurant Tasks</h2>
+  <p class="text-gray-600 mb-10">Choose an option below to begin.</p>
+
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-3xl mx-auto">
+
+    <!-- MENU BUTTON -->
+    <a href="employee_menu.html"
+      class="bg-white rounded-lg shadow-md p-6 border-l-4 border-blue-500 hover:shadow-lg transition block">
+      <div class="flex flex-col items-center">
+        <i class="fas fa-list text-4xl text-blue-500 mb-4"></i>
+        <h3 class="text-xl font-bold text-gray-800 mb-2">View Menu</h3>
+        <p class="text-gray-600 text-sm">Check dishes and availability</p>
+      </div>
+    </a>
+
+    <!-- ORDERS BUTTON -->
+    <a href="employee_order.html"
+      class="bg-white rounded-lg shadow-md p-6 border-l-4 border-green-500 hover:shadow-lg transition block">
+      <div class="flex flex-col items-center">
+        <i class="fas fa-receipt text-4xl text-green-500 mb-4"></i>
+        <h3 class="text-xl font-bold text-gray-800 mb-2">View Orders</h3>
+        <p class="text-gray-600 text-sm">Manage active customer orders</p>
+      </div>
+    </a>
+
+  </div>
+</main>
   <script>
     document.getElementById('logoutBtn').addEventListener('click', async () => {
       await fetch('/Employee/logout', { method: 'POST' });

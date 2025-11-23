@@ -82,6 +82,7 @@ const CustomerSession = {
     localStorage.removeItem('customerLoggedIn');
     localStorage.removeItem('customerData');
     localStorage.removeItem('customerEmail');
+  localStorage.removeItem('cartItems');
     fetch('/api/logout', { method: 'POST' });
   }
 };

@@ -36,6 +36,20 @@
 </header>
 
   <main class="flex-grow max-w-4xl mx-auto p-4 sm:p-6">
+
+<!-- Date Filter -->
+<div class="w-full max-w-4xl mx-auto mt-4 mb-4 flex justify-end pr-2">
+  <label class="text-sm text-gray-600 mr-2 mt-1">Filter by date:</label>
+  <input 
+    type="date"
+    id="orderDateFilter"
+    class="border border-gray-300 text-gray-700 px-3 py-1.5 rounded-md 
+           bg-white shadow-sm hover:bg-gray-50 transition text-sm cursor-pointer"
+    style="min-width: 160px;"
+  />
+</div>
+
+
     <section id="ordersContainer" class="space-y-4">
       <p class="text-center text-gray-500">Loading your orders...</p>
     </section>
@@ -73,6 +87,7 @@ const CustomerSession = {
         localStorage.removeItem('customerLoggedIn');
         localStorage.removeItem('customerData');
         localStorage.removeItem('customerEmail');
+	localStorage.removeItem('cartItems');
 
         // Also call server logout
         fetch('/api/logout', { method: 'POST' });
@@ -154,42 +169,77 @@ async function loadOrders() {
     const data = await res.json();
     if (!data.success) throw new Error(data.message);
 
-    if (!data.orders.length) {
-      container.innerHTML = '<p class="text-center text-gray-500">You have no orders yet.</p>';
-      return;
-    }
-<!--
-    container.innerHTML = data.orders.map(o => `
-      <div class="bg-white shadow rounded-lg border border-gray-200 p-4 flex justify-between items-center">
-        <div>
-          <h3 class="font-semibold text-gray-800">#${o.order_id} – ${o.item_name} × ${o.quantity}</h3>
-          <p class="text-sm text-gray-600">Placed: ${new Date(o.order_time).toLocaleString()}</p>
-        </div>
-        <span class="px-3 py-1 rounded-full text-sm font-medium ${
-          o.status.toLowerCase() === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-          'bg-green-100 text-green-800'
-        }">${o.status}</span>
-      </div>
-    `).join('');
--->
 
-  container.innerHTML = data.orders.map(o => `
-  <div class="bg-white shadow rounded-lg border border-gray-200 p-4 space-y-2">
-    <div class="flex justify-between items-center">
-      <h3 class="font-semibold text-gray-800">Order #${o.order_id}</h3>
-      <span class="px-3 py-1 rounded-full text-sm font-medium ${
-        o.status.toLowerCase() === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-        'bg-green-100 text-green-800'
+// Save fetched orders globally for filtering
+window.customerOrders = data.orders;
+
+// Check selected date
+const filterDate = document.getElementById("orderDateFilter").value;
+
+// Filter orders by date if selected
+let filteredOrders = data.orders;
+
+if (filterDate) {
+  filteredOrders = data.orders.filter(o => {
+    const orderDateOnly = new Date(o.order_time)
+      .toISOString()
+      .split("T")[0]; // "YYYY-MM-DD"
+
+    return orderDateOnly === filterDate;
+  });
+}
+
+if (!filteredOrders.length) {
+  container.innerHTML = `
+    <p class="text-center text-gray-500">No orders on this date.</p>
+  `;
+  return;
+}
+
+// Render filtered orders
+container.innerHTML = filteredOrders.map(o => `
+  <div class="bg-white border border-gray-200 rounded-lg shadow-sm p-5">
+      
+    <div class="flex justify-between items-center mb-2">
+      <h3 class="font-semibold text-gray-900 text-lg">Order #${o.order_id}</h3>
+      <span class="px-3 py-1.5 rounded-full text-xs font-medium ${
+        o.status.toLowerCase() === 'pending'
+          ? 'bg-yellow-50 text-yellow-700 border border-yellow-200'
+          : 'bg-green-50 text-green-700 border border-green-200'
       }">${o.status}</span>
     </div>
-    <p class="text-sm text-gray-500">Placed: ${new Date(o.order_time).toLocaleString()}</p>
-    <div class="space-y-1">
+
+    <p class="text-xs text-gray-500 mb-3">
+      Placed on: ${new Date(o.order_time).toLocaleString()}
+    </p>
+
+    <div class="border-t border-gray-100 pt-3 mb-3">
       ${o.items.map(item => `
-        <p class="text-gray-700">${item.item_name} × ${item.quantity}</p>
+        <div class="flex justify-between text-sm text-gray-700 py-1">
+          <span>${item.item_name}</span>
+          <span>× ${item.quantity}</span>
+        </div>
       `).join('')}
+    </div>
+
+    ${
+      (o.status.toLowerCase() === 'completed' && CustomerSession.isLoggedIn())
+      ? `
+      <div class="flex justify-end">
+        <button 
+          class="px-3 py-1.5 text-sm border border-gray-300 text-gray-700 
+                 rounded-md bg-white shadow-sm hover:bg-gray-100 transition"
+          onclick="quickReorder(${o.order_id})">
+          Re-Order
+        </button>
       </div>
-     </div>
-   `).join('');
+      `
+      : ``
+    }
+
+  </div>
+`).join('');
+
 
   } catch (err) {
     console.error(err);
@@ -244,6 +294,46 @@ setInterval(loadOrders, 10000);
       loginLogoutLink.href = 'customer_login.html';
     }
   });
+document.getElementById("orderDateFilter").addEventListener("change", () => {
+  loadOrders(); // reload filtered orders
+});
+
+</script>
+
+
+<script>
+function quickReorder(orderId) {
+  if (!CustomerSession.isLoggedIn()) return;
+
+  const order = window.customerOrders.find(o => o.order_id == orderId);
+  if (!order) return;
+
+  // Load existing cart
+  let cart = JSON.parse(localStorage.getItem("cartItems")) || [];
+
+  // Add each item from the order
+  order.items.forEach(i => {
+	const id = String(i.item_id);
+    const priceCents = Math.round(Number(i.price) * 100);
+
+    const existing = cart.find(it => it.id == i.item_id);
+    if (existing) {
+      existing.qty += i.quantity;
+    } else {
+      cart.push({
+        id,
+        name: i.item_name,
+        priceCents,
+        qty: i.quantity
+      });
+    }
+  });
+
+  localStorage.setItem("cartItems", JSON.stringify(cart));
+
+  // Go to CART
+  window.location.href = "customer_cart.html";
+}
 </script>
 
 </body>
