@@ -7,6 +7,9 @@ const formidable = require('formidable');
 const bcrypt = require('bcrypt');
 const QRCode = require('qrcode');
 const dns = require('dns').promises;
+require('dotenv').config();                   
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
 
 const baseDir = path.resolve(__dirname, '..');
 
@@ -67,6 +70,16 @@ async function isValidEmailDomain(email) {
   } catch (err) {
     return false;
   }
+}
+
+// function to execute queries with promises (ADMIN:reports)
+function executeQuery(sql, params) {
+  return new Promise((resolve, reject) => {
+    connection_pool.query(sql, params, (err, results) => {
+      if (err) reject(err);
+      else resolve(results);
+    });
+  });
 }
 
 // ---------- EMPLOYEE LOGIN ----------
@@ -446,6 +459,50 @@ if (imageFile && imageFile.filepath) {
     return;
   }
 
+// ---------- ADMIN: Edit menu item ----------
+if (req.method === 'PUT' 
+    && reqPath.startsWith('/Employee/menu/')
+    && reqPath.endsWith('/edit')) {
+
+    const session = getSessionFromCookie();
+    if (!session || String(session.role).toLowerCase() !== 'admin') {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: false, message: 'Unauthorized: Admins only' }));
+    }
+
+    const itemId = reqPath.split('/')[3];
+
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', () => {
+      try {
+        const { item_name, description, price } = JSON.parse(body);
+
+        const sql = `
+          UPDATE Menu 
+          SET item_name=?, description=?, price=? 
+          WHERE item_id=?
+        `;
+
+        connection_pool.query(sql, [item_name, description, price, itemId], (err) => {
+          if (err) {
+            console.error('Update Error:', err);
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ success: false, message: 'Database error' }));
+          }
+
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true }));
+        });
+
+      } catch (err) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, message: 'Invalid JSON format' }));
+      }
+    });
+    return;
+}
+
   // ---------- ADMIN: Toggle menu item availability (PUT /Employee/menu/:id) ----------
   if (req.method === 'PUT' && reqPath.startsWith('/Employee/menu/')) {
     const session = getSessionFromCookie();
@@ -477,7 +534,6 @@ if (imageFile && imageFile.filepath) {
      });
     return;
   }
-
 
 
   // ---------- CUSTOMER: Register ----------
@@ -582,7 +638,6 @@ if (req.method === 'POST' && req.url === '/api/login') {
                 `session=; HttpOnly; Path=/; Max-Age=0` // Clear employee session
               ]
             });
-            res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ success: true, user }));
           });
         }
@@ -610,62 +665,170 @@ if (req.method === 'POST' && req.url === '/api/logout') {
 }
 
   // ---------- EMPLOYEE: Create Order (manual entry) ----------
-  if (req.method === 'POST' && req.url === '/api/employee/createOrder') {
-    let body = '';
-    req.on('data', chunk => body += chunk);
-    req.on('end', () => {
-      try {
-        const { customer_id = null, item_id, quantity } = JSON.parse(body);
 
-        if (!item_id || !quantity) {
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          return res.end(JSON.stringify({ success: false, message: 'Missing fields' }));
-        }
+if (req.method === 'POST' && req.url === '/api/employee/createOrder') {
+  let body = '';
+  req.on('data', chunk => body += chunk);
+  req.on('end', async () => {
+    try {
+      const { customer_id = null, items } = JSON.parse(body);
 
-        const sql = `
-          INSERT INTO Orders (customer_id, item_id, quantity, status)
-          VALUES (?, ?, ?, 'Pending')
-        `;
-
-        connection_pool.query(sql, [customer_id, item_id, quantity], (err) => {
-          if (err) {
-            console.error('DB Insert Error:', err);
-            res.writeHead(500, { 'Content-Type': 'application/json' });
-            return res.end(JSON.stringify({ success: false, message: 'Database error' }));
-          }
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ success: true, message: 'Order created successfully' }));
-        });
-
-      } catch (e) {
-        console.error('JSON Parse Error:', e);
+      if (!items || !items.length) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: false, message: 'Invalid JSON' }));
+        return res.end(JSON.stringify({ success: false, message: 'Missing items' }));
       }
-    });
-    return;
-  }
 
+      // Start transaction
+      connection_pool.getConnection((err, connection) => {
+        if (err) return resError(500, 'Database connection error', err);
+
+        connection.beginTransaction(err => {
+          if (err) {
+            connection.release();
+            return resError(500, 'Transaction start error', err);
+          }
+
+          // Insert order
+          const sqlOrder = 'INSERT INTO Orders (customer_id, status) VALUES (?, "Pending")';
+          connection.query(sqlOrder, [customer_id], (err, result) => {
+            if (err) {
+              return connection.rollback(() => {
+                connection.release();
+                resError(500, 'Database error creating order', err);
+              });
+            }
+
+            const orderId = result.insertId;
+
+            const itemIds = items.map(i => i.item_id);
+              connection.query(
+               'SELECT item_id, price FROM Menu WHERE item_id IN (?)',
+               [itemIds],
+              (err, dbItems) => {
+                if (err) {
+                  return connection.rollback(() => {
+                    connection.release();
+                    resError(500, 'Database error fetching item prices', err);
+                  });
+                }
+
+                // Map prices to the items sent
+                const values = items.map(i => {
+                  const dbItem = dbItems.find(db => db.item_id === i.item_id);
+                  if (!dbItem) {
+                    throw new Error(`Item ID ${i.item_id} not found`);
+                  }
+                  return [orderId, i.item_id, i.quantity, dbItem.price];
+                });
+
+                // Insert into OrderItems
+                connection.query(
+                  'INSERT INTO OrderItems (order_id, item_id, quantity, price) VALUES ?',
+                  [values],
+                  (err) => {
+                    if (err) {
+                      return connection.rollback(() => {
+                        connection.release();
+                        resError(500, 'Database error creating order items', err);
+                      });
+                    }
+
+                    // Commit transaction
+                    connection.commit(err => {
+                      if (err) {
+                        return connection.rollback(() => {
+                          connection.release();
+                          resError(500, 'Transaction commit error', err);
+                        });
+                      }
+
+                      connection.release();
+                      res.writeHead(200, { 'Content-Type': 'application/json' });
+                      res.end(JSON.stringify({ success: true, message: 'Order created successfully', order_id: orderId }));
+                    });
+                  }
+                );
+              }
+            );
+          });
+        });
+      });
+
+    } catch (e) {
+      console.error('JSON Parse or Logic Error:', e);
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, message: e.message || 'Invalid JSON' }));
+    }
+  });
+
+  return;
+}
+
+
+ 
   // ---------- EMPLOYEE: Fetch all pending orders ----------
+
   if (req.method === 'GET' && req.url === '/api/orders/pending') {
-    const sql = `
-      SELECT order_id, customer_id, item_id,  quantity, status, order_time
-      FROM Orders
-      WHERE status = 'Pending'
-      ORDER BY order_time DESC
-    `;
-    connection_pool.query(sql, (err, rows) => {
-      if (err) {
-        console.error('DB Fetch Error:', err);
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ success: false, message: 'Database error' }));
+  const sql = `
+    SELECT 
+      o.order_id,
+      o.customer_id,
+      o.status,
+      o.order_time,
+      COALESCE(c.name, 'Walk-in') AS customer_name,
+      oi.item_id,
+      oi.quantity,
+      m.item_name
+    FROM Orders o
+    LEFT JOIN Customers c ON o.customer_id = c.customer_id
+    LEFT JOIN OrderItems oi ON o.order_id = oi.order_id
+    LEFT JOIN Menu m ON oi.item_id = m.item_id
+    WHERE o.status = 'Pending'
+    ORDER BY o.order_time DESC
+  `;
+
+  connection_pool.query(sql, (err, rows) => {
+    if (err) {
+      console.error('DB Fetch Error:', err);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: false, message: 'Database error' }));
+    }
+
+    // Group items by order_id
+    const orders = [];
+    const map = {};
+
+    rows.forEach(row => {
+      if (!map[row.order_id]) {
+        map[row.order_id] = {
+          order_id: row.order_id,
+          customer_id: row.customer_id,
+          customer_name: row.customer_name,
+          status: row.status,
+          order_time: row.order_time,
+          items: []
+        };
+        orders.push(map[row.order_id]);
       }
 
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: true, orders: rows }));
+      if (row.item_id) {
+        map[row.order_id].items.push({
+          item_id: row.item_id,
+          item_name: row.item_name,
+          quantity: row.quantity
+        });
+      }
     });
-    return;
-  }
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, orders }));
+  });
+  return;
+}
+
+
+
+
    // ---------- Public: Fetch available menu items (for customers & employees) ----------
    if (req.method === 'GET' && req.url === '/api/menu') {
     const sql = 'SELECT * FROM Menu WHERE available = 1 OR available IS NULL';
@@ -685,9 +848,11 @@ if (req.method === 'POST' && req.url === '/api/logout') {
     return;
   }
 
+
 // ---------- CUSTOMER: Checkout ----------
 if (req.method === 'POST' && req.url === '/api/checkout') {
   let body = '';
+
   req.on('data', chunk => body += chunk);
   req.on('end', () => {
     try {
@@ -698,50 +863,106 @@ if (req.method === 'POST' && req.url === '/api/checkout') {
         return res.end(JSON.stringify({ success: false, message: 'Cart is empty' }));
       }
 
-      // Check if customer exists by email
+      // Validate items
+      for (const i of items) {
+        if (!i.item_id || !i.quantity || i.quantity <= 0) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ success: false, message: 'Invalid items' }));
+        }
+      }
+
+      // Helper function for errors
+      const resError = (code, message, err) => {
+        if (err) console.error(err);
+        res.writeHead(code, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, message }));
+      };
+
+      // Check if customer exists
       connection_pool.query(
         'SELECT customer_id FROM Customers WHERE email = ? LIMIT 1',
         [customer.email],
         (err, rows) => {
-          if (err) {
-            console.error('DB Error (customer check):', err);
-            res.writeHead(500, { 'Content-Type': 'application/json' });
-            return res.end(JSON.stringify({ success: false, message: 'Database error' }));
-          }
+          if (err) return resError(500, 'Database error checking customer', err);
 
-          const createOrder = (customerId) => {
-            // Insert all items into Orders table
-            const values = items.map(i => [customerId, i.item_id, i.quantity, 'Pending']);
-            connection_pool.query(
-              'INSERT INTO Orders (customer_id, item_id, quantity, status) VALUES ?',
-              [values],
-              (err2) => {
-                if (err2) {
-                  console.error('DB Error (insert orders):', err2);
-                  res.writeHead(500, { 'Content-Type': 'application/json' });
-                  return res.end(JSON.stringify({ success: false, message: 'Database error' }));
+          const proceedWithOrder = (customerId) => {
+            connection_pool.getConnection((err, conn) => {
+              if (err) return resError(500, 'Database connection error', err);
+
+              conn.beginTransaction(err => {
+                if (err) {
+                  conn.release();
+                  return resError(500, 'Failed to start transaction', err);
                 }
 
-                res.writeHead(200, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ success: true, message: 'Order placed successfully!' }));
-              }
-            );
+                //Insert order
+                const orderSQL = 'INSERT INTO Orders (customer_id, status) VALUES (?, "Pending")';
+                conn.query(orderSQL, [customerId], (err, result) => {
+                  if (err) return conn.rollback(() => resError(500, 'Failed to create order', err));
+
+                  const orderId = result.insertId;
+
+                  // Fetch item prices from Menu table
+                  const itemIds = items.map(i => i.item_id);
+                  conn.query(
+                    'SELECT item_id, price FROM Menu WHERE item_id IN (?)',
+                    [itemIds],
+                    (err, itemRows) => {
+                      if (err) return conn.rollback(() => resError(500, 'Failed to fetch item prices', err));
+
+                      const priceMap = {};
+                      itemRows.forEach(r => priceMap[r.item_id] = r.price);
+
+                      const orderItemsValues = [];
+
+                      for (const i of items) {
+                        if (priceMap[i.item_id] === undefined) {
+                          return conn.rollback(() => resError(400, `Item not found: ${i.item_id}`));
+                        }
+                        const price = priceMap[i.item_id];
+                        orderItemsValues.push([orderId, i.item_id, i.quantity, price]);
+                      }
+
+                      // Insert order items
+                      const orderItemsSQL = 'INSERT INTO OrderItems (order_id, item_id, quantity, price) VALUES ?';
+                      conn.query(orderItemsSQL, [orderItemsValues], (err) => {
+                        if (err) return conn.rollback(() => resError(500, 'Failed to insert order items', err));
+
+                        // Commit transaction
+                        conn.commit(err => {
+                          if (err) return conn.rollback(() => resError(500, 'Failed to commit transaction', err));
+
+                          res.writeHead(200, { 'Content-Type': 'application/json' });
+                          res.end(JSON.stringify({
+                            success: true,
+                            message: 'Order placed successfully!',
+                            order_id: orderId
+                          }));
+
+                          conn.release();
+                        });
+                      });
+                    }
+                  );
+                });
+              });
+            });
           };
 
+          // Customer exists?
           if (rows.length > 0) {
-            // Customer exists
-            createOrder(rows[0].customer_id);
+            proceedWithOrder(rows[0].customer_id);
           } else {
             // Create new customer first
             const insertCustomerSQL = 'INSERT INTO Customers (name, email, phone) VALUES (?, ?, ?)';
-            connection_pool.query(insertCustomerSQL, [customer.name, customer.email, customer.phone || null], (err3, result) => {
-              if (err3) {
-                console.error('DB Error (insert customer):', err3);
-                res.writeHead(500, { 'Content-Type': 'application/json' });
-                return res.end(JSON.stringify({ success: false, message: 'Database error creating customer' }));
+            connection_pool.query(
+              insertCustomerSQL,
+              [customer.name, customer.email, customer.phone || null],
+              (err, result) => {
+                if (err) return resError(500, 'Database error creating customer', err);
+                proceedWithOrder(result.insertId);
               }
-              createOrder(result.insertId);
-            });
+            );
           }
         }
       );
@@ -752,8 +973,13 @@ if (req.method === 'POST' && req.url === '/api/checkout') {
       res.end(JSON.stringify({ success: false, message: 'Invalid JSON' }));
     }
   });
-  return;
 }
+
+
+
+
+
+
 
 // ---------- CUSTOMER: Fetch their orders ----------
 if (req.method === 'POST' && req.url === '/api/orders/customer') {
@@ -768,31 +994,61 @@ if (req.method === 'POST' && req.url === '/api/orders/customer') {
         return res.end(JSON.stringify({ success: false, message: 'Email required' }));
       }
 
+      // Get orders and their items
       const sql = `
-        SELECT o.order_id, m.item_name, o.quantity AS quantity, o.status, o.order_time
-        FROM Orders o
-        JOIN Menu m ON o.item_id = m.item_id
-        JOIN Customers c ON o.customer_id = c.customer_id
-        WHERE c.email = ?
-        ORDER BY o.order_time DESC
+        SELECT 
+         o.order_id, 
+         o.status,
+         o.order_time, 
+         oi.item_id, 
+         oi.quantity, 
+         m.item_name
+      FROM Orders o
+      JOIN OrderItems oi ON o.order_id = oi.order_id
+      JOIN Menu m ON oi.item_id = m.item_id
+      JOIN Customers c ON o.customer_id = c.customer_id
+      WHERE c.email = ?
+      ORDER BY o.order_id DESC
       `;
 
-      connection_pool.query(sql, [email], (err, orders) => {
+      connection_pool.query(sql, [email], (err, rows) => {
         if (err) {
+          console.error('DB Error (fetch orders):', err);
           res.writeHead(500, { 'Content-Type': 'application/json' });
           return res.end(JSON.stringify({ success: false, message: 'Database error' }));
         }
 
+        // Group items by order_id
+        const orders = [];
+        const map = {};
+
+        rows.forEach(row => {
+          if (!map[row.order_id]) {
+            map[row.order_id] = { order_id: row.order_id, status: row.status, order_time: row.order_time, items: [] };
+            orders.push(map[row.order_id]);
+          }
+          map[row.order_id].items.push({
+            item_id: row.item_id,
+            item_name: row.item_name,
+            quantity: row.quantity
+          });
+        });
+
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ success: true, orders }));
       });
+
     } catch (e) {
+      console.error('Parse Error:', e);
       res.writeHead(400, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ success: false, message: 'Invalid JSON' }));
     }
   });
   return;
 }
+
+
+
 
 
 
@@ -869,24 +1125,27 @@ if (req.method === 'GET' && (reqPath === '/qr.png' || reqPath === '/qr')) {
 }
 
 
+
 // ---------- EMPLOYEE: Fetch active orders (Pending + In Progress) ----------
 if (req.method === 'GET' && req.url === '/api/orders/active') {
   const sql = `
     SELECT
       o.order_id,
       o.customer_id,
-      o.item_id,
-      o.quantity,
       o.status,
       o.order_time,
       COALESCE(c.name, 'Walk-in') AS customer_name,
+      oi.item_id,
+      oi.quantity,
       m.item_name
     FROM Orders o
     LEFT JOIN Customers c ON o.customer_id = c.customer_id
-    LEFT JOIN Menu m ON o.item_id = m.item_id
+    LEFT JOIN OrderItems oi ON o.order_id = oi.order_id
+    LEFT JOIN Menu m ON oi.item_id = m.item_id
     WHERE o.status IN ('Pending', 'In Progress')
     ORDER BY o.order_time DESC
   `;
+
   connection_pool.query(sql, (err, rows) => {
     if (err) {
       console.error('DB Fetch Error:', err);
@@ -894,12 +1153,301 @@ if (req.method === 'GET' && req.url === '/api/orders/active') {
       return res.end(JSON.stringify({ success: false }));
     }
 
+    // Group items by order
+    const orders = [];
+    const map = {};
+
+    rows.forEach(row => {
+      if (!map[row.order_id]) {
+        map[row.order_id] = {
+          order_id: row.order_id,
+          customer_id: row.customer_id,
+          customer_name: row.customer_name,
+          status: row.status,
+          order_time: row.order_time,
+          items: []
+        };
+        orders.push(map[row.order_id]);
+      }
+
+      if (row.item_id) {
+        map[row.order_id].items.push({
+          item_id: row.item_id,
+          item_name: row.item_name,
+          quantity: row.quantity
+        });
+      }
+    });
+
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ success: true, orders: rows }));
+    res.end(JSON.stringify({ success: true, orders }));
   });
   return;
 }
 
+// ---------- ADMIN: Generate Reports ----------
+if (req.method === 'POST' && reqPath === '/Employee/reports') {
+  const session = getSessionFromCookie();
+  if (!session || String(session.role).toLowerCase() !== 'admin') {
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ success: false, message: 'Unauthorized: Admins only' }));
+  }
+
+  let body = '';
+  req.on('data', chunk => body += chunk);
+  req.on('end', () => {
+    try {
+      const { startDate, endDate } = JSON.parse(body);
+      
+      if (!startDate || !endDate) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: false, message: 'Start date and end date required' }));
+      }
+
+      // Execute all queries with proper table joins
+      const queryPromises = [
+        // Total Revenue and Orders
+        executeQuery(`SELECT 
+          COUNT(DISTINCT o.order_id) as total_orders,
+          COALESCE(SUM(oi.price * oi.quantity), 0) as total_revenue,
+          COALESCE(AVG(oi.price * oi.quantity), 0) as avg_order_value
+        FROM Orders o
+        JOIN OrderItems oi ON o.order_id = oi.order_id
+        WHERE DATE(o.order_time) BETWEEN ? AND ? AND o.status = 'Completed'`, [startDate, endDate]),
+        
+        // Most Popular Item
+        executeQuery(`SELECT 
+          m.item_id,
+          m.item_name,
+          SUM(oi.quantity) as total_quantity
+        FROM Orders o
+        JOIN OrderItems oi ON o.order_id = oi.order_id
+        JOIN Menu m ON oi.item_id = m.item_id
+        WHERE DATE(o.order_time) BETWEEN ? AND ? AND o.status = 'Completed'
+        GROUP BY m.item_id, m.item_name
+        ORDER BY total_quantity DESC
+        LIMIT 1`, [startDate, endDate]),
+        
+        // Daily Revenue
+        executeQuery(`SELECT 
+          DATE(o.order_time) as date,
+          COALESCE(SUM(oi.price * oi.quantity), 0) as revenue
+        FROM Orders o
+        JOIN OrderItems oi ON o.order_id = oi.order_id
+        WHERE DATE(o.order_time) BETWEEN ? AND ? AND o.status = 'Completed'
+        GROUP BY DATE(o.order_time)
+        ORDER BY date`, [startDate, endDate]),
+        
+        // Top Selling Items
+        executeQuery(`SELECT 
+          m.item_name,
+          SUM(oi.quantity) as total_quantity,
+          SUM(oi.price * oi.quantity) as total_revenue
+        FROM Orders o
+        JOIN OrderItems oi ON o.order_id = oi.order_id
+        JOIN Menu m ON oi.item_id = m.item_id
+        WHERE DATE(o.order_time) BETWEEN ? AND ? AND o.status = 'Completed'
+        GROUP BY m.item_id, m.item_name
+        ORDER BY total_quantity DESC
+        LIMIT 10`, [startDate, endDate]),
+        
+        // Detailed Orders
+        executeQuery(`SELECT 
+          o.order_id,
+          COALESCE(c.name, 'Walk-in') as customer_name,
+          GROUP_CONCAT(CONCAT(m.item_name, ' (x', oi.quantity, ')') SEPARATOR ', ') as items,
+          SUM(oi.price * oi.quantity) as total_amount,
+          o.status,
+          o.order_time
+        FROM Orders o
+        LEFT JOIN Customers c ON o.customer_id = c.customer_id
+        JOIN OrderItems oi ON o.order_id = oi.order_id
+        JOIN Menu m ON oi.item_id = m.item_id
+        WHERE DATE(o.order_time) BETWEEN ? AND ? AND o.status = 'Completed'
+        GROUP BY o.order_id
+        ORDER BY o.order_time DESC`, [startDate, endDate])
+      ];
+
+      Promise.all(queryPromises).then(results => {
+        const report = {
+          totalOrders: results[0][0]?.total_orders || 0,
+          totalRevenue: parseFloat(results[0][0]?.total_revenue) || 0,
+          averageOrderValue: parseFloat(results[0][0]?.avg_order_value) || 0,
+          mostPopularItem: results[1][0]?.item_name || 'No data',
+          dailyRevenue: results[2] || [],
+          topItems: results[3] || [],
+          detailedOrders: results[4] || [],
+        };
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, report }));
+      }).catch(err => {
+        console.error('Report generation error:', err);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, message: 'Error generating report' }));
+      });
+
+    } catch (e) {
+      console.error('Report parse error:', e);
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, message: 'Invalid request' }));
+    }
+  });
+  return;
+}
+
+// ---------- ADMIN: Export Reports to CSV ----------
+if (req.method === 'GET' && reqPath === '/Employee/reports/export') {
+  const session = getSessionFromCookie();
+  if (!session || String(session.role).toLowerCase() !== 'admin') {
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ success: false, message: 'Unauthorized: Admins only' }));
+  }
+
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const startDate = url.searchParams.get('startDate');
+  const endDate = url.searchParams.get('endDate');
+
+  if (!startDate || !endDate) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ success: false, message: 'Start date and end date required' }));
+  }
+
+  const sql = `
+    SELECT 
+      o.order_id,
+      COALESCE(c.name, 'Walk-in') as customer_name,
+      c.email as customer_email,
+      m.item_name,
+      oi.quantity,
+      oi.price as unit_price,
+      (oi.price * oi.quantity) as total_price,
+      o.status,
+      o.order_time
+    FROM Orders o
+    LEFT JOIN Customers c ON o.customer_id = c.customer_id
+    JOIN OrderItems oi ON o.order_id = oi.order_id
+    JOIN Menu m ON oi.item_id = m.item_id
+    WHERE DATE(o.order_time) BETWEEN ? AND ? AND o.status = 'Completed'
+    ORDER BY o.order_time DESC
+  `;
+
+  connection_pool.query(sql, [startDate, endDate], (err, rows) => {
+    if (err) {
+      console.error('Export error:', err);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: false, message: 'Database error' }));
+    }
+
+    // Generate CSV
+    let csv = 'Order ID,Customer Name,Email,Item,Quantity,Unit Price,Total Price,Status,Order Time\n';
+    rows.forEach(row => {
+      const orderTime = new Date(row.order_time);
+      const formattedTime = orderTime.toISOString().replace('T', ' ').replace(/\.\d+Z$/, '');
+
+      csv += `"${row.order_id}","${row.customer_name}","${row.customer_email}","${row.item_name}",${row.quantity},${row.unit_price},${row.total_price},"${row.status}","${formattedTime}"\n`;
+    });
+
+    res.writeHead(200, {
+      'Content-Type': 'text/csv',
+      'Content-Disposition': `attachment; filename="Restaurant Report ${startDate} to ${endDate}.csv"`
+    });
+    res.end(csv);
+  });
+  return;
+}
+
+   if (req.method === 'POST' && req.url === '/api/create-checkout-session') {
+  let body = '';
+  req.on('data', chunk => body += chunk);
+  req.on('end', async () => {
+    try {
+      const { order_id, items, customer_email } = JSON.parse(body);
+
+      if (!order_id || !items?.length || !customer_email) {
+        return res.end(JSON.stringify({ success: false, message: 'Missing data' }));
+      }
+
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        mode: 'payment',
+        customer_email,
+        line_items: items.map(item => ({
+          price_data: {
+            currency: 'usd',
+            product_data: { name: item.item_name || 'Menu Item' },
+            unit_amount: Math.round(item.price * 100), // dollars → cents
+          },
+          quantity: item.quantity,
+        })),
+        success_url: `http://136.113.3.49/Customer/customer_main.html?payment=success&order=${order_id}`,
+        cancel_url:  `http://136.113.3.49/Customer/customer_main.html?payment=cancelled`,
+        metadata: { order_id: String(order_id) },
+      });
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, url: session.url }));
+    } catch (err) {
+      console.error('Stripe error:', err.message);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, message: 'Payment failed' }));
+    }
+  });
+  return;
+}
+
+// 2. Webhook — automatically marks order as Completed when paid
+if (req.method === 'POST' && req.url === '/webhook/stripe') {
+  const sig = req.headers['stripe-signature'];
+  let event;
+  const chunks = [];
+
+  req.on('data', chunk => chunks.push(chunk));
+  req.on('end', async () => {
+    const rawBody = Buffer.concat(chunks);
+
+    try {
+      event = stripe.webhooks.constructEvent(rawBody, sig, STRIPE_WEBHOOK_SECRET);
+    } catch (err) {
+      console.error('Webhook signature failed:', err.message);
+      res.writeHead(400);
+      return res.end(`Webhook Error: ${err.message}`);
+    }
+
+    if (event.type === 'checkout.session.completed') {
+      const orderId = event.data.object.metadata.order_id;
+      if (orderId) {
+        connection_pool.query(
+          `UPDATE Orders SET status = 'Completed', paid_at = NOW() WHERE order_id = ?`,
+          [orderId],
+          (err) => {
+            if (err) console.error('DB update failed:', err);
+            else console.log(`Order ${orderId} PAID & COMPLETED via Stripe`);
+          }
+        );
+      }
+    }
+
+    res.writeHead(200);
+    res.end('OK');
+  });
+  return;
+}
+
+// 3. Serve success & cancel pages
+if (reqPath === '/Customer/success.html' || reqPath === '/Customer/cancel.html') {
+  const file = path.join(baseDir, 'public_html', reqPath);
+  fs.readFile(file, (err, data) => {
+    if (err) {
+      res.writeHead(404); res.end('Not found');
+    } else {
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      res.end(data);
+    }
+  });
+  return;
+}
+  
 
   // ---------- Static file handler ----------
   let filePath = path.join(baseDir, 'public_html', reqPath.replace(/^\/+/, ''));

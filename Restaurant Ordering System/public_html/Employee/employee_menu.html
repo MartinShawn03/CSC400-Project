@@ -161,8 +161,12 @@ document.getElementById('modalConfirm').addEventListener('click', async () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         customer_id: null,           // walk-in
+        items: [
+        {
         item_id: currentItem.item_id,
         quantity
+       }
+       ]
       })
     });
 
