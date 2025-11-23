@@ -361,13 +361,33 @@ const Cart = {
     this.showToast(`${name} added to cart `);
   },
 
-  showToast(message) {
-    const toast = document.createElement('div');
-    toast.className = 'fixed bottom-6 right-6 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg z-50';
-    toast.textContent = message;
-    document.body.appendChild(toast);
-    setTimeout(() => toast.remove(), 2500);
-  },
+showToast(message) {
+  const toast = document.createElement('div');
+
+  toast.className = `
+    fixed left-1/2 bottom-8 transform -translate-x-1/2
+    bg-white text-gray-900 px-4 py-2 rounded-xl
+    shadow-lg border border-gray-200
+    flex items-center gap-2
+    opacity-0 transition-opacity duration-300 z-50
+  `;
+
+  toast.innerHTML = `
+    <span class="text-green-600 text-xl">✓</span>
+    <span class="text-sm font-medium">${message}</span>
+  `;
+
+  document.body.appendChild(toast);
+
+  setTimeout(() => {
+    toast.classList.remove("opacity-0");
+  }, 20);
+
+  setTimeout(() => {
+    toast.classList.add("opacity-0");
+    setTimeout(() => toast.remove(), 300);
+  }, 2200);
+},
 
   clear() {
     this.items = [];
