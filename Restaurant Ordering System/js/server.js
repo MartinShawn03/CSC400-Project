@@ -11,6 +11,8 @@ require('dotenv').config();
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
 
+const nodemailer = require('nodemailer');
+
 const baseDir = path.resolve(__dirname, '..');
 
 const PUBLIC_CUSTOMER_URL = 'http://136.113.3.49/Customer/customer_main.html';
@@ -26,6 +28,251 @@ const connection_pool = mysql.createPool({
 // Simple in-memory session store
 const sessions = {};
 const customerSessions = {};
+
+
+// ------------------ Nodemailer / Email setup ------------------
+// Read SMTP config from env
+const SMTP_HOST = process.env.SMTP_HOST;
+const SMTP_PORT = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
+const SMTP_SECURE = process.env.SMTP_SECURE === 'true'; // true/false in .env
+const SMTP_USER = process.env.SMTP_USER;
+const SMTP_PASS = process.env.SMTP_PASS;
+const EMAIL_FROM = process.env.EMAIL_FROM || 'no-reply@restaurant.local';
+
+// Create transporter if SMTP config present, otherwise fallback to logging
+let transporter = null;
+if (SMTP_HOST && SMTP_PORT && SMTP_USER && SMTP_PASS) {
+  transporter = nodemailer.createTransport({
+    host: SMTP_HOST,
+    port: SMTP_PORT,
+    secure: SMTP_SECURE,
+    auth: {
+      user: SMTP_USER,
+      pass: SMTP_PASS
+    }
+  });
+  // verify transporter (non-blocking)
+  transporter.verify().then(() => {
+    console.log('SMTP transporter verified');
+  }).catch(err => {
+    console.warn('SMTP transporter verification failed:', err.message);
+    transporter = null;
+  });
+} else {
+  console.warn('SMTP not fully configured. Emails will be logged to console instead of sent.');
+}
+
+// Helper to send email (returns Promise)
+function sendEmail(to, subject, html) {
+  return new Promise((resolve, reject) => {
+    if (!to) return reject(new Error('No recipient email provided'));
+    if (transporter) {
+      const mail = {
+        from: EMAIL_FROM,
+        to,
+        subject,
+        html
+      };
+      transporter.sendMail(mail, (err, info) => {
+        if (err) {
+          console.error('Email send error:', err);
+          return reject(err);
+        }
+        console.log('Email sent:', info.messageId || info.response);
+        return resolve(info);
+      });
+    } else {
+      // fallback: log to console
+      console.log('--- Email (logged, transporter not configured) ---');
+      console.log('To:', to);
+      console.log('Subject:', subject);
+      console.log('HTML:', html);
+      console.log('------------------------------------------------');
+      return resolve({ logged: true });
+    }
+  });
+}
+
+// Build HTML order summary
+function buildOrderHTML(orderId, customerName, items) {
+  let rows = '';
+  let total = 0;
+  items.forEach(it => {
+   // const line = (it.price || 0) * (it.quantity || 0);
+    const price = Number(it.price) || 0;    
+    const qty   = Number(it.quantity) || 0;  
+
+    const line = price * qty;
+    total += line;
+    rows += `<tr>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee">${escapeHtml(it.item_name)}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:center">${qty}</td>   
+      <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right">$${price.toFixed(2)}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right">$${line.toFixed(2)}</td>
+    </tr>`;
+  });
+
+  const html = `
+    <div style="font-family:Arial,Helvetica,sans-serif;color:#111">
+      <h2>Thanks ${escapeHtml(customerName || '')}, your order was received</h2>
+      <p>Order ID: <strong>#${orderId}</strong></p>
+      <table style="width:100%;border-collapse:collapse;margin-top:12px">
+        <thead>
+          <tr>
+            <th style="text-align:left;padding:6px 8px;border-bottom:2px solid #ddd">Item</th>
+            <th style="text-align:center;padding:6px 8px;border-bottom:2px solid #ddd">Qty</th>
+            <th style="text-align:right;padding:6px 8px;border-bottom:2px solid #ddd">Unit</th>
+            <th style="text-align:right;padding:6px 8px;border-bottom:2px solid #ddd">Line</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows}
+          <tr>
+            <td colspan="3" style="padding:8px 8px;text-align:right;font-weight:bold">TOTAL</td>
+            <td style="padding:8px 8px;text-align:right;font-weight:bold">$${total.toFixed(2)}</td>
+          </tr>
+        </tbody>
+      </table>
+      <p style="margin-top:12px">You will receive updates when the order status changes.</p>
+      <p style="font-size: 12px; color: #666; margin-top: 8px;">
+         Restaurant Ordering System<br>
+         This is an automated message—please do not reply.
+      </p>
+    </div>
+  `;
+  return html;
+}
+
+// Send email when an order status changes
+function sendOrderStatusUpdateEmail(orderId, newStatus) {
+  return new Promise((resolve, reject) => {
+    const sql = `
+      SELECT Customers.email, Customers.name
+      FROM Orders
+      JOIN Customers ON Orders.customer_id = Customers.customer_id
+      WHERE Orders.order_id = ?
+    `;
+
+    connection_pool.query(sql, [orderId], (err, results) => {
+      if (err) {
+        console.error("DB error getting customer email:", err);
+        return reject(err);
+      }
+
+      if (results.length === 0) {
+        console.warn("No customer email found for order", orderId);
+        return resolve("NO_EMAIL");
+      }
+
+      const { email, full_name } = results[0];
+
+      const subject = `Order #${orderId} Status Updated`;
+      const html = `
+        <div style="font-family: Arial, Helvetica, sans-serif; color:#111; line-height:1.5;">
+            <h2 style="margin-bottom: 10px;">Hello ${escapeHtml(full_name)},</h2>
+
+            <p>Your order <strong>#${orderId}</strong> has a new update.</p>
+
+            <p style="font-size: 16px; margin-top: 10px;">
+            <strong>Status Update:</strong>
+            <span style="color: #0b5ed7;">${escapeHtml(newStatus)}</span>
+            </p>
+
+            <p style="margin-top: 16px;">
+               You will receive additional notifications as your order progresses.
+            </p>
+
+            <p style="margin-top: 20px;">
+               Thank you for ordering with us!
+            </p>
+
+            <hr style="margin-top: 30px; border: none; border-top: 1px solid #ddd;">
+
+            <p style="font-size: 12px; color: #666; margin-top: 8px;">
+              Restaurant Ordering System<br>
+     	      This is an automated message—please do not reply.
+            </p>
+        </div>
+
+      `;
+
+      sendEmail(email, subject, html)
+        .then(info => {
+          console.log("Status update email sent:", info.messageId || info.response);
+          resolve(info);
+        })
+        .catch(err => {
+          console.error("Email send ERROR:", err);
+          reject(err);
+        });
+    });
+  });
+}
+
+
+
+
+// Simple HTML escaper
+function escapeHtml(s) {
+  if (!s && s !== 0) return '';
+  return String(s)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+// Fetch order items and customer info helper
+function fetchOrderDetails(orderId) {
+  return new Promise((resolve, reject) => {
+    const sql = `
+      SELECT o.order_id, o.customer_id, o.status, o.order_time,
+             COALESCE(c.email, '') AS customer_email, COALESCE(c.name, 'Guest') AS customer_name,
+             oi.item_id, oi.quantity, oi.price, m.item_name
+      FROM Orders o
+      LEFT JOIN Customers c ON o.customer_id = c.customer_id
+      LEFT JOIN OrderItems oi ON o.order_id = oi.order_id
+      LEFT JOIN Menu m ON oi.item_id = m.item_id
+      WHERE o.order_id = ?
+    `;
+    connection_pool.query(sql, [orderId], (err, rows) => {
+      if (err) return reject(err);
+      if (!rows.length) return resolve(null);
+      const first = rows[0];
+      const items = rows.map(r => ({
+        item_id: r.item_id,
+        item_name: r.item_name,
+        quantity: r.quantity,
+        price: r.price
+      }));
+      resolve({
+        order_id: first.order_id,
+        customer_id: first.customer_id,
+        customer_email: first.customer_email,
+        customer_name: first.customer_name,
+        status: first.status,
+        order_time: first.order_time,
+        items
+      });
+    });
+  });
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 const server = http.createServer((req, res) => {
   let reqPath = decodeURIComponent(req.url.split('?')[0]);
@@ -638,7 +885,6 @@ if (req.method === 'POST' && req.url === '/api/login') {
                 `session=; HttpOnly; Path=/; Max-Age=0` // Clear employee session
               ]
             });
-            res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ success: true, user }));
           });
         }
@@ -851,7 +1097,7 @@ if (req.method === 'POST' && req.url === '/api/employee/createOrder') {
 
 
 // ---------- CUSTOMER: Checkout ----------
-if (req.method === 'POST' && req.url === '/api/checkout') {
+/*if (req.method === 'POST' && req.url === '/api/checkout') {
   let body = '';
 
   req.on('data', chunk => body += chunk);
@@ -975,8 +1221,147 @@ if (req.method === 'POST' && req.url === '/api/checkout') {
     }
   });
 }
+*/
 
+// ---------- CUSTOMER: Checkout ----------
+if (req.method === 'POST' && req.url === '/api/checkout') {
+  let body = '';
 
+  req.on('data', chunk => body += chunk);
+  req.on('end', () => {
+    try {
+      const { customer, items } = JSON.parse(body);
+
+      if (!items || !items.length) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: false, message: 'Cart is empty' }));
+      }
+
+      const resError = (code, message, err) => {
+        if (err) console.error(err);
+        res.writeHead(code, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, message }));
+      };
+
+      // Check customer exists
+      connection_pool.query(
+        'SELECT customer_id FROM Customers WHERE email = ? LIMIT 1',
+        [customer.email],
+        (err, rows) => {
+          if (err) return resError(500, 'Database error checking customer', err);
+
+          const proceedWithOrder = (customerId) => {
+            connection_pool.getConnection((err, conn) => {
+              if (err) return resError(500, 'Database connection error', err);
+
+              conn.beginTransaction(err => {
+                if (err) {
+                  conn.release();
+                  return resError(500, 'Failed to start transaction', err);
+                }
+
+                // Insert order
+                const orderSQL = 'INSERT INTO Orders (customer_id, status) VALUES (?, "Pending")';
+                conn.query(orderSQL, [customerId], (err, result) => {
+                  if (err) return conn.rollback(() => resError(500, 'Failed to create order', err));
+
+                  const orderId = result.insertId;
+
+                  // Fetch item prices
+                  const itemIds = items.map(i => i.item_id);
+                  conn.query(
+                    'SELECT item_id, price FROM Menu WHERE item_id IN (?)',
+                    [itemIds],
+                    (err, itemRows) => {
+                      if (err) return conn.rollback(() => resError(500, 'Failed to fetch item prices', err));
+
+                      const priceMap = {};
+                      itemRows.forEach(r => priceMap[r.item_id] = r.price);
+
+                      const orderItemsValues = [];
+
+                      for (const i of items) {
+                        if (priceMap[i.item_id] === undefined) {
+                          return conn.rollback(() => resError(400, `Item not found: ${i.item_id}`));
+                        }
+                        const price = priceMap[i.item_id];
+                        orderItemsValues.push([orderId, i.item_id, i.quantity, price]);
+                      }
+
+                      // Insert order items
+                      const orderItemsSQL = 'INSERT INTO OrderItems (order_id, item_id, quantity, price) VALUES ?';
+                      conn.query(orderItemsSQL, [orderItemsValues], (err) => {
+                        if (err) return conn.rollback(() => resError(500, 'Failed to insert order items', err));
+
+                        // Commit transaction
+                        conn.commit(async err => {
+                          if (err) return conn.rollback(() => resError(500, 'Failed to commit transaction', err));
+
+                          conn.release();
+
+                          // -------------------------
+                          //  SEND ORDER CONFIRMATION
+                          // -------------------------
+                          try {
+                            const orderDetails = await fetchOrderDetails(orderId);
+                            const html = buildOrderHTML(
+                              orderId,
+                              orderDetails.customer_name,
+                              orderDetails.items
+                            );
+
+                            await sendEmail(
+                              orderDetails.customer_email,
+                              `Order #${orderId} Received`,
+                              html
+                            );
+
+                            console.log(`Order confirmation email sent to ${orderDetails.customer_email}`);
+                          } catch (emailErr) {
+                            console.error("Failed to send order confirmation email:", emailErr);
+                          }
+
+                          // Response to client
+                          res.writeHead(200, { 'Content-Type': 'application/json' });
+                          res.end(JSON.stringify({
+                            success: true,
+                            message: 'Order placed successfully!',
+                            order_id: orderId
+                          }));
+                        });
+                      });
+                    }
+                  );
+                });
+              });
+            });
+          };
+
+          // Customer exists?
+          if (rows.length > 0) {
+            proceedWithOrder(rows[0].customer_id);
+          } else {
+            // Create new customer
+            const insertCustomerSQL = 'INSERT INTO Customers (name, email, phone) VALUES (?, ?, ?)';
+            connection_pool.query(
+              insertCustomerSQL,
+              [customer.name, customer.email, customer.phone || null],
+              (err, result) => {
+                if (err) return resError(500, 'Database error creating customer', err);
+                proceedWithOrder(result.insertId);
+              }
+            );
+          }
+        }
+      );
+
+    } catch (e) {
+      console.error('Checkout Parse Error:', e);
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, message: 'Invalid JSON' }));
+    }
+  });
+}
 
 
 
@@ -1003,7 +1388,9 @@ if (req.method === 'POST' && req.url === '/api/orders/customer') {
          o.order_time, 
          oi.item_id, 
          oi.quantity, 
-         m.item_name
+         m.item_name,
+	oi.price as item_price,
+	m.price AS menu_price
       FROM Orders o
       JOIN OrderItems oi ON o.order_id = oi.order_id
       JOIN Menu m ON oi.item_id = m.item_id
@@ -1028,10 +1415,13 @@ if (req.method === 'POST' && req.url === '/api/orders/customer') {
             map[row.order_id] = { order_id: row.order_id, status: row.status, order_time: row.order_time, items: [] };
             orders.push(map[row.order_id]);
           }
+	const price = row.item_price != null ? row.item_price : row.menu_price;
+
           map[row.order_id].items.push({
             item_id: row.item_id,
             item_name: row.item_name,
-            quantity: row.quantity
+            quantity: row.quantity,
+		price
           });
         });
 
@@ -1055,6 +1445,7 @@ if (req.method === 'POST' && req.url === '/api/orders/customer') {
 
 
 // ---------- UPDATE ORDER STATUS ----------
+/*
 if (req.method === 'PUT' && req.url === '/api/orders/updateStatus') {
   let body = '';
   req.on('data', chunk => body += chunk);
@@ -1101,6 +1492,62 @@ if (req.method === 'PUT' && req.url === '/api/orders/updateStatus') {
   });
   return;
 }
+
+*/
+// ---------- UPDATE ORDER STATUS ----------
+if (req.method === 'PUT' && req.url === '/api/orders/updateStatus') {
+  let body = '';
+  req.on('data', chunk => body += chunk);
+
+  req.on('end', () => {
+    try {
+      const { order_id, status } = JSON.parse(body);
+
+      if (!order_id || !status) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({
+          success: false,
+          message: 'Missing order_id or status'
+        }));
+      }
+
+      const sql = `UPDATE Orders SET status = ? WHERE order_id = ?`;
+
+      connection_pool.query(sql, [status, order_id], (err) => {
+        if (err) {
+          console.error('DB Error updateStatus:', err);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({
+            success: false,
+            message: 'Database error'
+          }));
+        }
+
+        // --------- SEND EMAIL ---------
+        sendOrderStatusUpdateEmail(order_id, status)
+          .catch(err => console.error("Failed to send status update email:", err));
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          success: true,
+          message: 'Order status updated'
+        }));
+      });
+
+    } catch (err) {
+      console.error("JSON Error:", err);
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        success: false,
+        message: 'Invalid JSON'
+      }));
+    }
+  });
+  return;
+}
+
+
+
 
 
 
@@ -1358,7 +1805,7 @@ if (req.method === 'GET' && reqPath === '/Employee/reports/export') {
   return;
 }
 
-  if (req.method === 'POST' && req.url === '/api/create-checkout-session') {
+   if (req.method === 'POST' && req.url === '/api/create-checkout-session') {
   let body = '';
   req.on('data', chunk => body += chunk);
   req.on('end', async () => {
