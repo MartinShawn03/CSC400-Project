@@ -11,6 +11,8 @@ require('dotenv').config();
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
 
+const nodemailer = require('nodemailer');
+
 const baseDir = path.resolve(__dirname, '..');
 
 const PUBLIC_CUSTOMER_URL = 'http://136.113.3.49/Customer/customer_main.html';
@@ -26,6 +28,225 @@ const connection_pool = mysql.createPool({
 // Simple in-memory session store
 const sessions = {};
 const customerSessions = {};
+
+
+// ------------------ Nodemailer / Email setup ------------------
+// Read SMTP config from env
+const SMTP_HOST = process.env.SMTP_HOST;
+const SMTP_PORT = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
+const SMTP_SECURE = process.env.SMTP_SECURE === 'true'; // true/false in .env
+const SMTP_USER = process.env.SMTP_USER;
+const SMTP_PASS = process.env.SMTP_PASS;
+const EMAIL_FROM = process.env.EMAIL_FROM || 'no-reply@restaurant.local';
+
+// Create transporter if SMTP config present, otherwise fallback to logging
+let transporter = null;
+if (SMTP_HOST && SMTP_PORT && SMTP_USER && SMTP_PASS) {
+  transporter = nodemailer.createTransport({
+    host: SMTP_HOST,
+    port: SMTP_PORT,
+    secure: SMTP_SECURE,
+    auth: {
+      user: SMTP_USER,
+      pass: SMTP_PASS
+    }
+  });
+  // verify transporter (non-blocking)
+  transporter.verify().then(() => {
+    console.log('SMTP transporter verified');
+  }).catch(err => {
+    console.warn('SMTP transporter verification failed:', err.message);
+    transporter = null;
+  });
+} else {
+  console.warn('SMTP not fully configured. Emails will be logged to console instead of sent.');
+}
+
+// Helper to send email (returns Promise)
+function sendEmail(to, subject, html) {
+  return new Promise((resolve, reject) => {
+    if (!to) return reject(new Error('No recipient email provided'));
+    if (transporter) {
+      const mail = {
+        from: EMAIL_FROM,
+        to,
+        subject,
+        html
+      };
+      transporter.sendMail(mail, (err, info) => {
+        if (err) {
+          console.error('Email send error:', err);
+          return reject(err);
+        }
+        console.log('Email sent:', info.messageId || info.response);
+        return resolve(info);
+      });
+    } else {
+      // fallback: log to console
+      console.log('--- Email (logged, transporter not configured) ---');
+      console.log('To:', to);
+      console.log('Subject:', subject);
+      console.log('HTML:', html);
+      console.log('------------------------------------------------');
+      return resolve({ logged: true });
+    }
+  });
+}
+
+// Build HTML order summary
+function buildOrderHTML(orderId, customerName, items) {
+  let rows = '';
+  let total = 0;
+  items.forEach(it => {
+    const line = (it.price || 0) * (it.quantity || 0);
+    total += line;
+    rows += `<tr>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee">${escapeHtml(it.item_name)}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:center">${it.quantity}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right">$${(it.price||0).toFixed(2)}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right">$${line.toFixed(2)}</td>
+    </tr>`;
+  });
+
+  const html = `
+    <div style="font-family:Arial,Helvetica,sans-serif;color:#111">
+      <h2>Thanks ${escapeHtml(customerName || '')}, your order was received</h2>
+      <p>Order ID: <strong>#${orderId}</strong></p>
+      <table style="width:100%;border-collapse:collapse;margin-top:12px">
+        <thead>
+          <tr>
+            <th style="text-align:left;padding:6px 8px;border-bottom:2px solid #ddd">Item</th>
+            <th style="text-align:center;padding:6px 8px;border-bottom:2px solid #ddd">Qty</th>
+            <th style="text-align:right;padding:6px 8px;border-bottom:2px solid #ddd">Unit</th>
+            <th style="text-align:right;padding:6px 8px;border-bottom:2px solid #ddd">Line</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows}
+          <tr>
+            <td colspan="3" style="padding:8px 8px;text-align:right;font-weight:bold">TOTAL</td>
+            <td style="padding:8px 8px;text-align:right;font-weight:bold">$${total.toFixed(2)}</td>
+          </tr>
+        </tbody>
+      </table>
+      <p style="margin-top:12px">You will receive updates when the order status changes.</p>
+      <p style="color:#888;font-size:12px">If you have questions reply to this email.</p>
+    </div>
+  `;
+  return html;
+}
+
+// Send email when an order status changes
+function sendOrderStatusUpdateEmail(orderId, newStatus) {
+  return new Promise((resolve, reject) => {
+    const sql = `
+      SELECT Customers.email, Customers.full_name
+      FROM Orders
+      JOIN Customers ON Orders.customer_id = Customers.customer_id
+      WHERE Orders.order_id = ?
+    `;
+
+    connection_pool.query(sql, [orderId], (err, results) => {
+      if (err) {
+        console.error("DB error getting customer email:", err);
+        return reject(err);
+      }
+
+      if (results.length === 0) {
+        console.warn("No customer email found for order", orderId);
+        return resolve("NO_EMAIL");
+      }
+
+      const { email, full_name } = results[0];
+
+      const subject = `Order #${orderId} Status Updated`;
+      const html = `
+        <div style="font-family: Arial, Helvetica, sans-serif;">
+          <h2>Hello ${escapeHtml(full_name)},</h2>
+          <p>Your order <strong>#${orderId}</strong> has been updated.</p>
+          <p><strong>New Status:</strong> ${escapeHtml(newStatus)}</p>
+          <br>
+          <p>Thank you for ordering with us!</p>
+        </div>
+      `;
+
+      sendEmail(email, subject, html)
+        .then(info => {
+          console.log("Status update email sent:", info.messageId || info.response);
+          resolve(info);
+        })
+        .catch(err => {
+          console.error("Email send ERROR:", err);
+          reject(err);
+        });
+    });
+  });
+}
+
+
+
+
+// Simple HTML escaper
+function escapeHtml(s) {
+  if (!s && s !== 0) return '';
+  return String(s)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+// Fetch order items and customer info helper
+function fetchOrderDetails(orderId) {
+  return new Promise((resolve, reject) => {
+    const sql = `
+      SELECT o.order_id, o.customer_id, o.status, o.order_time,
+             COALESCE(c.email, '') AS customer_email, COALESCE(c.name, 'Guest') AS customer_name,
+             oi.item_id, oi.quantity, oi.price, m.item_name
+      FROM Orders o
+      LEFT JOIN Customers c ON o.customer_id = c.customer_id
+      LEFT JOIN OrderItems oi ON o.order_id = oi.order_id
+      LEFT JOIN Menu m ON oi.item_id = m.item_id
+      WHERE o.order_id = ?
+    `;
+    connection_pool.query(sql, [orderId], (err, rows) => {
+      if (err) return reject(err);
+      if (!rows.length) return resolve(null);
+      const first = rows[0];
+      const items = rows.map(r => ({
+        item_id: r.item_id,
+        item_name: r.item_name,
+        quantity: r.quantity,
+        price: r.price
+      }));
+      resolve({
+        order_id: first.order_id,
+        customer_id: first.customer_id,
+        customer_email: first.customer_email,
+        customer_name: first.customer_name,
+        status: first.status,
+        order_time: first.order_time,
+        items
+      });
+    });
+  });
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 const server = http.createServer((req, res) => {
   let reqPath = decodeURIComponent(req.url.split('?')[0]);
@@ -1054,6 +1275,7 @@ if (req.method === 'POST' && req.url === '/api/orders/customer') {
 
 
 // ---------- UPDATE ORDER STATUS ----------
+/*
 if (req.method === 'PUT' && req.url === '/api/orders/updateStatus') {
   let body = '';
   req.on('data', chunk => body += chunk);
@@ -1100,6 +1322,62 @@ if (req.method === 'PUT' && req.url === '/api/orders/updateStatus') {
   });
   return;
 }
+
+*/
+// ---------- UPDATE ORDER STATUS ----------
+if (req.method === 'PUT' && req.url === '/api/orders/updateStatus') {
+  let body = '';
+  req.on('data', chunk => body += chunk);
+
+  req.on('end', () => {
+    try {
+      const { order_id, status } = JSON.parse(body);
+
+      if (!order_id || !status) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({
+          success: false,
+          message: 'Missing order_id or status'
+        }));
+      }
+
+      const sql = `UPDATE Orders SET status = ? WHERE order_id = ?`;
+
+      connection_pool.query(sql, [status, order_id], (err) => {
+        if (err) {
+          console.error('DB Error updateStatus:', err);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({
+            success: false,
+            message: 'Database error'
+          }));
+        }
+
+        // --------- SEND EMAIL ---------
+        sendOrderStatusUpdateEmail(order_id, status)
+          .catch(err => console.error("Failed to send status update email:", err));
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          success: true,
+          message: 'Order status updated'
+        }));
+      });
+
+    } catch (err) {
+      console.error("JSON Error:", err);
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        success: false,
+        message: 'Invalid JSON'
+      }));
+    }
+  });
+  return;
+}
+
+
+
 
 
 
