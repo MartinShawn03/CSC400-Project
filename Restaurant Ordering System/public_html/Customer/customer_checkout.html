@@ -104,6 +104,7 @@ const CustomerSession = {
         localStorage.removeItem('customerLoggedIn');
         localStorage.removeItem('customerData');
         localStorage.removeItem('customerEmail');
+	localStorage.removeItem('cartItems');
 
         // Also call server logout
         fetch('/api/logout', { method: 'POST' });
@@ -154,10 +155,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
 const stripe = Stripe('pk_test_51SFy9hAEv5kiH6la3apUe0ronAHocibuAjVdd9r1W7zAFYJpi4F90BHK5VCdMqyxIIaqaifHltWO1ZAygdYTzwCp00S0q23MLJ'); 
 
+let reorderCart = JSON.parse(localStorage.getItem('reorderCart'));
+let normalCart = JSON.parse(localStorage.getItem('cartItems'));
+
 const Cart = {
-  items: JSON.parse(localStorage.getItem('cartItems')) || [],
-  getTotal() { return this.items.reduce((sum, i) => sum + i.priceCents * i.qty, 0) / 100; },
-  clear() { this.items = []; localStorage.removeItem('cartItems'); }
+  items: reorderCart || normalCart || [],
+
+  save() {
+    localStorage.setItem('cartItems', JSON.stringify(this.items));
+    localStorage.removeItem('reorderCart'); // remove reorder cart
+  },
+
+  getTotal() {
+    return this.items.reduce((sum, i) => sum + i.priceCents * i.qty, 0) / 100;
+  },
+
+  clear() {
+    this.items = [];
+    localStorage.removeItem('cartItems');
+    localStorage.removeItem('reorderCart'); // also clear reorder cart
+  }
 };
 
 function renderOrder() {

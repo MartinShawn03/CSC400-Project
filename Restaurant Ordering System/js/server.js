@@ -1388,7 +1388,9 @@ if (req.method === 'POST' && req.url === '/api/orders/customer') {
          o.order_time, 
          oi.item_id, 
          oi.quantity, 
-         m.item_name
+         m.item_name,
+	oi.price as item_price,
+	m.price AS menu_price
       FROM Orders o
       JOIN OrderItems oi ON o.order_id = oi.order_id
       JOIN Menu m ON oi.item_id = m.item_id
@@ -1413,10 +1415,13 @@ if (req.method === 'POST' && req.url === '/api/orders/customer') {
             map[row.order_id] = { order_id: row.order_id, status: row.status, order_time: row.order_time, items: [] };
             orders.push(map[row.order_id]);
           }
+	const price = row.item_price != null ? row.item_price : row.menu_price;
+
           map[row.order_id].items.push({
             item_id: row.item_id,
             item_name: row.item_name,
-            quantity: row.quantity
+            quantity: row.quantity,
+		price
           });
         });
 

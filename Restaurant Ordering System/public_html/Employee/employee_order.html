@@ -10,44 +10,51 @@
 <body class="bg-gray-50 min-h-screen flex flex-col font-sans">
 
   <!-- Header -->
-  <header class="bg-white border-b border-gray-200 shadow-sm p-4 flex justify-between items-center">
+<header class="bg-white shadow-sm border-b-2 border-indigo-600 sticky top-0">
+  <div class="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
+
     <div class="flex items-center gap-2">
-      <!-- Mobile Back Button -->
-      <button onclick="history.back()"
-              class="sm:hidden text-gray-700 bg-gray-100 px-3 py-1 rounded border border-gray-300 hover:bg-gray-200 transition">
-        ← Back
-      </button>
-      <h1 class="text-lg sm:text-2xl font-semibold text-gray-800">Employee Dashboard</h1>
+      <i class="fas fa-receipt text-2xl text-indigo-600"></i>
+      <h1 class="text-2xl font-bold text-gray-800">Employee Orders</h1>
     </div>
 
-    <!-- Nav Buttons -->
-    <div class="flex gap-2">
+    <div class="flex gap-2 items-center">
       <a href="employee_main.html"
-         class="bg-gray-100 text-gray-800 px-3 py-1 rounded border border-gray-300 hover:bg-gray-200 transition text-sm">
-         Home
+        class="bg-gray-600 text-white px-5 py-2.5 rounded-lg font-medium hover:bg-gray-700 transition flex items-center justify-center gap-2 h-10">
+        <i class="fas fa-home text-base"></i>
+        <span>Home</span>
       </a>
+
       <a href="employee_menu.html"
-         class="bg-gray-100 text-gray-800 px-3 py-1 rounded border border-gray-300 hover:bg-gray-200 transition text-sm">
-         Menu
+        class="bg-blue-600 text-white px-5 py-2.5 rounded-lg font-medium hover:bg-blue-700 transition flex items-center justify-center gap-2 h-10">
+        <i class="fas fa-list text-base"></i>
+        <span>Menu</span>
       </a>
+
       <a href="employee_login.html"
-         class="bg-blue-600 text-white px-3 py-1 rounded shadow hover:bg-blue-700 transition text-sm">
-         Logout
+        class="bg-red-500 text-white px-5 py-2.5 rounded-lg font-medium hover:bg-red-600 transition flex items-center justify-center gap-2 h-10">
+        <i class="fas fa-sign-out-alt text-base"></i>
+        <span>Logout</span>
       </a>
     </div>
-  </header>
+  </div>
+</header>
 
   <!-- Main Content -->
   <main class="flex-grow p-6 max-w-7xl mx-auto w-full">
     
     <!-- Pending Orders Section -->
-    <section class="mt-2 mb-4 flex items-center justify-between">
-      <h2 class="text-2xl sm:text-3xl font-bold text-gray-800">Active Orders</h2>
-      <button id="refreshBtn"
-              class="bg-gray-100 text-gray-800 px-3 py-1 rounded border border-gray-300 hover:bg-gray-200 transition text-sm">
-        Refresh
-      </button>
-    </section>
+<section class="mt-6 mb-8 flex items-center justify-between">
+  <div>
+    <h2 class="text-3xl font-bold text-gray-800">Active Orders</h2>
+    <p class="text-gray-600 text-sm">Monitor and update customer orders</p>
+  </div>
+
+  <button id="refreshBtn"
+    class="bg-white border border-gray-300 px-4 py-2 rounded-lg shadow-sm hover:bg-gray-100 transition flex items-center gap-2">
+    <i class="fas fa-sync"></i> Refresh
+  </button>
+</section>
 
     <section id="ordersGrid" class="grid gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
       <!-- Cards will be injected here -->
@@ -66,11 +73,11 @@
     <script>
     function showToast(message, type = "success") {
       const toast = document.getElementById("toast");
-      toast.innerHTML = `
-    <div class="px-4 py-2 rounded-lg shadow ${type === "error" ? "bg-red-600 text-white" : "bg-green-600 text-white"}">
+	toast.innerHTML = `
+    <div class="px-4 py-2 rounded-lg shadow text-white text-sm 
+      ${type === 'error' ? 'bg-red-600' : 'bg-green-600'}">
       ${message}
     </div>`;
-
       toast.classList.remove("hidden");
       setTimeout(() => toast.classList.add("hidden"), 2500);
     }
@@ -127,42 +134,49 @@
 
         const isInProgress = o.status === "In Progress";
           
-          card.innerHTML = `
-          <div class="p-4 flex flex-col h-full">
+	card.innerHTML = `
+  <div class="p-5 flex flex-col h-full">
 
-              <div class="flex items-center justify-between mb-1">
-               <h3 class="font-semibold text-gray-800">#${o.order_id}</h3>
-               ${statusPill(o.status)}
-          </div>
-          <div class="items-list flex-1 overflow-y-auto max-h-24 text-sm text-gray-700 ml-1 mb-2">
-             ${o.items.map(it => `
-              <div>• ${it.item_name} × ${it.quantity}</div>
-          `).join('')}
-           <div class="pointer-events-none absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-white to-transparent"></div>
-         </div>
-
-         <p class="text-sm text-gray-700 mb-1">
-           <span class="font-medium">Customer:</span> ${o.customer_name}
-         </p>
-
-         <p class="text-xs text-gray-500 mb-3">Placed: ${fmtTime(o.order_time)}</p>
-
-        <div class="flex gap-2 mt-auto">
-          <button class="inprogress-btn flex-1 px-3 py-1 rounded text-white
-           ${isInProgress ? "bg-blue-400 cursor-not-allowed opacity-50" : "bg-blue-600 hover:bg-blue-700"}">
-           In Progress
-        </button>
-
-        <button class="confirm-btn flex-1 bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 transition">
-         Confirm
-        </button>
-
-        <button class="cancel-btn flex-1 bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 transition">
-         Cancel
-        </button>
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="text-lg font-bold text-gray-900">Order #${o.order_id}</h3>
+      ${statusPill(o.status)}
     </div>
+
+    <div class="mb-4">
+      <h4 class="text-sm font-semibold text-gray-700 mb-1">Items</h4>
+      <div class="items-list flex-1 overflow-y-auto max-h-24 text-sm text-gray-700 pl-1 space-y-1">
+        ${o.items.map(it => `
+          <div class="flex justify-between">
+            <span>• ${it.item_name}</span>
+            <span class="font-medium">× ${it.quantity}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+
+    <p class="text-sm text-gray-700 mb-1">
+      <span class="font-medium">Customer:</span> ${o.customer_name}
+    </p>
+
+    <p class="text-xs text-gray-500 mb-4">Placed: ${fmtTime(o.order_time)}</p>
+
+<div class="mt-auto flex gap-2 flex-wrap">
+      <button class="inprogress-btn flex-1 min-w-0 bg-blue-600 text-white px-2 py-2 rounded-lg font-semibold hover:bg-blue-700 transition text-sm">
+        In Progress
+      </button>
+
+      <button class="confirm-btn flex-1 min-w-0 bg-green-600 text-white px-2 py-2 rounded-lg font-semibold hover:bg-green-700 transition text-sm">
+        Confirm
+      </button>
+
+      <button class="cancel-btn flex-1 min-w-0 bg-red-500 text-white px-2 py-2 rounded-lg font-semibold hover:bg-red-600 transition text-sm">
+        Cancel
+      </button>
+    </div>
+
   </div>
 `;
+	
 
           const inProgressBtn = card.querySelector('.inprogress-btn');
           const confirmBtn    = card.querySelector('.confirm-btn');
