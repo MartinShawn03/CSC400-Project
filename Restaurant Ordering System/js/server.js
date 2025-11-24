@@ -98,12 +98,16 @@ function buildOrderHTML(orderId, customerName, items) {
   let rows = '';
   let total = 0;
   items.forEach(it => {
-    const line = (it.price || 0) * (it.quantity || 0);
+   // const line = (it.price || 0) * (it.quantity || 0);
+    const price = Number(it.price) || 0;    
+    const qty   = Number(it.quantity) || 0;  
+
+    const line = price * qty;
     total += line;
     rows += `<tr>
       <td style="padding:6px 8px;border-bottom:1px solid #eee">${escapeHtml(it.item_name)}</td>
-      <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:center">${it.quantity}</td>
-      <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right">$${(it.price||0).toFixed(2)}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:center">${qty}</td>   
+      <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right">$${price.toFixed(2)}</td>
       <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right">$${line.toFixed(2)}</td>
     </tr>`;
   });
@@ -130,7 +134,10 @@ function buildOrderHTML(orderId, customerName, items) {
         </tbody>
       </table>
       <p style="margin-top:12px">You will receive updates when the order status changes.</p>
-      <p style="color:#888;font-size:12px">If you have questions reply to this email.</p>
+      <p style="font-size: 12px; color: #666; margin-top: 8px;">
+         Restaurant Ordering System<br>
+         This is an automated message—please do not reply.
+      </p>
     </div>
   `;
   return html;
@@ -140,7 +147,7 @@ function buildOrderHTML(orderId, customerName, items) {
 function sendOrderStatusUpdateEmail(orderId, newStatus) {
   return new Promise((resolve, reject) => {
     const sql = `
-      SELECT Customers.email, Customers.full_name
+      SELECT Customers.email, Customers.name
       FROM Orders
       JOIN Customers ON Orders.customer_id = Customers.customer_id
       WHERE Orders.order_id = ?
@@ -161,13 +168,32 @@ function sendOrderStatusUpdateEmail(orderId, newStatus) {
 
       const subject = `Order #${orderId} Status Updated`;
       const html = `
-        <div style="font-family: Arial, Helvetica, sans-serif;">
-          <h2>Hello ${escapeHtml(full_name)},</h2>
-          <p>Your order <strong>#${orderId}</strong> has been updated.</p>
-          <p><strong>New Status:</strong> ${escapeHtml(newStatus)}</p>
-          <br>
-          <p>Thank you for ordering with us!</p>
+        <div style="font-family: Arial, Helvetica, sans-serif; color:#111; line-height:1.5;">
+            <h2 style="margin-bottom: 10px;">Hello ${escapeHtml(full_name)},</h2>
+
+            <p>Your order <strong>#${orderId}</strong> has a new update.</p>
+
+            <p style="font-size: 16px; margin-top: 10px;">
+            <strong>Status Update:</strong>
+            <span style="color: #0b5ed7;">${escapeHtml(newStatus)}</span>
+            </p>
+
+            <p style="margin-top: 16px;">
+               You will receive additional notifications as your order progresses.
+            </p>
+
+            <p style="margin-top: 20px;">
+               Thank you for ordering with us!
+            </p>
+
+            <hr style="margin-top: 30px; border: none; border-top: 1px solid #ddd;">
+
+            <p style="font-size: 12px; color: #666; margin-top: 8px;">
+              Restaurant Ordering System<br>
+     	      This is an automated message—please do not reply.
+            </p>
         </div>
+
       `;
 
       sendEmail(email, subject, html)
@@ -1071,7 +1097,7 @@ if (req.method === 'POST' && req.url === '/api/employee/createOrder') {
 
 
 // ---------- CUSTOMER: Checkout ----------
-if (req.method === 'POST' && req.url === '/api/checkout') {
+/*if (req.method === 'POST' && req.url === '/api/checkout') {
   let body = '';
 
   req.on('data', chunk => body += chunk);
@@ -1195,8 +1221,147 @@ if (req.method === 'POST' && req.url === '/api/checkout') {
     }
   });
 }
+*/
 
+// ---------- CUSTOMER: Checkout ----------
+if (req.method === 'POST' && req.url === '/api/checkout') {
+  let body = '';
 
+  req.on('data', chunk => body += chunk);
+  req.on('end', () => {
+    try {
+      const { customer, items } = JSON.parse(body);
+
+      if (!items || !items.length) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: false, message: 'Cart is empty' }));
+      }
+
+      const resError = (code, message, err) => {
+        if (err) console.error(err);
+        res.writeHead(code, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, message }));
+      };
+
+      // Check customer exists
+      connection_pool.query(
+        'SELECT customer_id FROM Customers WHERE email = ? LIMIT 1',
+        [customer.email],
+        (err, rows) => {
+          if (err) return resError(500, 'Database error checking customer', err);
+
+          const proceedWithOrder = (customerId) => {
+            connection_pool.getConnection((err, conn) => {
+              if (err) return resError(500, 'Database connection error', err);
+
+              conn.beginTransaction(err => {
+                if (err) {
+                  conn.release();
+                  return resError(500, 'Failed to start transaction', err);
+                }
+
+                // Insert order
+                const orderSQL = 'INSERT INTO Orders (customer_id, status) VALUES (?, "Pending")';
+                conn.query(orderSQL, [customerId], (err, result) => {
+                  if (err) return conn.rollback(() => resError(500, 'Failed to create order', err));
+
+                  const orderId = result.insertId;
+
+                  // Fetch item prices
+                  const itemIds = items.map(i => i.item_id);
+                  conn.query(
+                    'SELECT item_id, price FROM Menu WHERE item_id IN (?)',
+                    [itemIds],
+                    (err, itemRows) => {
+                      if (err) return conn.rollback(() => resError(500, 'Failed to fetch item prices', err));
+
+                      const priceMap = {};
+                      itemRows.forEach(r => priceMap[r.item_id] = r.price);
+
+                      const orderItemsValues = [];
+
+                      for (const i of items) {
+                        if (priceMap[i.item_id] === undefined) {
+                          return conn.rollback(() => resError(400, `Item not found: ${i.item_id}`));
+                        }
+                        const price = priceMap[i.item_id];
+                        orderItemsValues.push([orderId, i.item_id, i.quantity, price]);
+                      }
+
+                      // Insert order items
+                      const orderItemsSQL = 'INSERT INTO OrderItems (order_id, item_id, quantity, price) VALUES ?';
+                      conn.query(orderItemsSQL, [orderItemsValues], (err) => {
+                        if (err) return conn.rollback(() => resError(500, 'Failed to insert order items', err));
+
+                        // Commit transaction
+                        conn.commit(async err => {
+                          if (err) return conn.rollback(() => resError(500, 'Failed to commit transaction', err));
+
+                          conn.release();
+
+                          // -------------------------
+                          //  SEND ORDER CONFIRMATION
+                          // -------------------------
+                          try {
+                            const orderDetails = await fetchOrderDetails(orderId);
+                            const html = buildOrderHTML(
+                              orderId,
+                              orderDetails.customer_name,
+                              orderDetails.items
+                            );
+
+                            await sendEmail(
+                              orderDetails.customer_email,
+                              `Order #${orderId} Received`,
+                              html
+                            );
+
+                            console.log(`Order confirmation email sent to ${orderDetails.customer_email}`);
+                          } catch (emailErr) {
+                            console.error("Failed to send order confirmation email:", emailErr);
+                          }
+
+                          // Response to client
+                          res.writeHead(200, { 'Content-Type': 'application/json' });
+                          res.end(JSON.stringify({
+                            success: true,
+                            message: 'Order placed successfully!',
+                            order_id: orderId
+                          }));
+                        });
+                      });
+                    }
+                  );
+                });
+              });
+            });
+          };
+
+          // Customer exists?
+          if (rows.length > 0) {
+            proceedWithOrder(rows[0].customer_id);
+          } else {
+            // Create new customer
+            const insertCustomerSQL = 'INSERT INTO Customers (name, email, phone) VALUES (?, ?, ?)';
+            connection_pool.query(
+              insertCustomerSQL,
+              [customer.name, customer.email, customer.phone || null],
+              (err, result) => {
+                if (err) return resError(500, 'Database error creating customer', err);
+                proceedWithOrder(result.insertId);
+              }
+            );
+          }
+        }
+      );
+
+    } catch (e) {
+      console.error('Checkout Parse Error:', e);
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, message: 'Invalid JSON' }));
+    }
+  });
+}
 
 
 
